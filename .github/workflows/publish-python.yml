@@ -274,6 +274,7 @@ jobs:
     environment:
       name: html-tstring-pypi
     if: |
+      always() &&
       needs.build-package.result == 'success' &&
       (
         needs.publish-bindings.result == 'success' ||
@@ -311,6 +312,7 @@ jobs:
     environment:
       name: thtml-tstring-pypi
     if: |
+      always() &&
       needs.build-package.result == 'success' &&
       (
         needs.publish-bindings.result == 'success' ||
