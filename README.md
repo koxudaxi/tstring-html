@@ -160,6 +160,36 @@ thtml(
 )
 ```
 
+## Editor integration (t-linter)
+
+[t-linter](https://github.com/koxudaxi/t-linter) is a linter, formatter, and
+LSP server for t-strings. It uses the same Rust backends as this project for
+`check` and `format`.
+
+```bash
+pip install t-linter
+```
+
+Check templates for errors:
+
+```bash
+t-linter check src/
+```
+
+Format HTML / T-HTML template literals:
+
+```bash
+t-linter format src/
+```
+
+Start the LSP server for real-time editor diagnostics:
+
+```bash
+t-linter lsp
+```
+
+A [VSCode extension](https://marketplace.visualstudio.com/items?itemName=koxudaxi.t-linter) is also available.
+
 ## Documentation
 
 Full docs: [tstring-html.koxudaxi.dev](https://tstring-html.koxudaxi.dev)
