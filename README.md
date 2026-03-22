@@ -11,6 +11,8 @@
 Parser-first HTML and T-HTML backends for
 [PEP 750](https://peps.python.org/pep-0750/) template strings.
 
+Documentation: [tstring-html.koxudaxi.dev](https://tstring-html.koxudaxi.dev/)
+
 Python 3.14 introduces t-strings. They look like f-strings but give you
 structured access to the interpolation values instead of concatenating them
 into a string. This project uses that structure to parse the template as HTML
