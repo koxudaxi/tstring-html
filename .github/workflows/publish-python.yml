@@ -10,6 +10,16 @@ on:
         description: "Release version to publish. Leave empty when running on a tag ref."
         required: false
         type: string
+      target:
+        description: "Package target to publish"
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - bindings
+          - html-tstring
+          - thtml-tstring
 
 permissions:
   contents: read
@@ -42,8 +52,40 @@ jobs:
           version="${version#V}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+  resolve-target:
+    runs-on: ubuntu-latest
+    outputs:
+      target: ${{ steps.resolve.outputs.target }}
+    steps:
+      - name: Resolve publish target
+        id: resolve
+        shell: bash
+        env:
+          INPUT_TARGET: ${{ github.event.inputs.target }}
+          REF_TYPE: ${{ github.ref_type }}
+        run: |
+          target="${INPUT_TARGET}"
+          if [ -z "$target" ]; then
+            if [ "$REF_TYPE" = "tag" ]; then
+              target="all"
+            else
+              echo "::error::Set the target input or run this workflow on a tag ref."
+              exit 1
+            fi
+          fi
+
+          case "$target" in
+            all|bindings|html-tstring|thtml-tstring) ;;
+            *)
+              echo "::error::Unsupported target: $target"
+              exit 1
+              ;;
+          esac
+
+          echo "target=$target" >> "$GITHUB_OUTPUT"
+
   version-check:
-    needs: resolve-version
+    needs: [resolve-version, resolve-target]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -57,13 +99,14 @@ jobs:
           python3 scripts/manage_versions.py check --tag "${{ needs.resolve-version.outputs.version }}"
 
   build-package:
-    needs: [resolve-version, version-check]
+    needs: [resolve-version, resolve-target, version-check]
     strategy:
       matrix:
         package_path: [html-tstring, thtml-tstring]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    if: ${{ needs.resolve-target.outputs.target != 'bindings' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -90,7 +133,7 @@ jobs:
           path: dist/*
 
   build-bindings-wheels:
-    needs: [resolve-version, version-check]
+    needs: [resolve-version, resolve-target, version-check]
     strategy:
       matrix:
         include:
@@ -106,6 +149,7 @@ jobs:
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
+    if: ${{ needs.resolve-target.outputs.target == 'all' || needs.resolve-target.outputs.target == 'bindings' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -154,10 +198,11 @@ jobs:
           path: dist/*
 
   build-bindings-sdist:
-    needs: [resolve-version, version-check]
+    needs: [resolve-version, resolve-target, version-check]
     runs-on: ubuntu-latest
     permissions:
       contents: read
+    if: ${{ needs.resolve-target.outputs.target == 'all' || needs.resolve-target.outputs.target == 'bindings' }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -193,6 +238,7 @@ jobs:
       id-token: write
     environment:
       name: tstring-html-bindings-pypi
+    if: ${{ needs.build-bindings-wheels.result == 'success' && needs.build-bindings-sdist.result == 'success' }}
     steps:
       - name: Download bindings wheel artifacts
         uses: actions/download-artifact@v4
@@ -217,15 +263,26 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          skip-existing: true
           verbose: true
 
   publish-html-tstring:
-    needs: [build-package, publish-bindings]
+    needs: [resolve-target, build-package, publish-bindings]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     environment:
       name: html-tstring-pypi
+    if: |
+      needs.build-package.result == 'success' &&
+      (
+        needs.publish-bindings.result == 'success' ||
+        needs.publish-bindings.result == 'skipped'
+      ) &&
+      (
+        needs.resolve-target.outputs.target == 'all' ||
+        needs.resolve-target.outputs.target == 'html-tstring'
+      )
     steps:
       - name: Download html-tstring artifact
         uses: actions/download-artifact@v4
@@ -243,15 +300,26 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          skip-existing: true
           verbose: true
 
   publish-thtml-tstring:
-    needs: [build-package, publish-bindings]
+    needs: [resolve-target, build-package, publish-bindings]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     environment:
       name: thtml-tstring-pypi
+    if: |
+      needs.build-package.result == 'success' &&
+      (
+        needs.publish-bindings.result == 'success' ||
+        needs.publish-bindings.result == 'skipped'
+      ) &&
+      (
+        needs.resolve-target.outputs.target == 'all' ||
+        needs.resolve-target.outputs.target == 'thtml-tstring'
+      )
     steps:
       - name: Download thtml-tstring artifact
         uses: actions/download-artifact@v4
@@ -269,4 +337,5 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          skip-existing: true
           verbose: true
