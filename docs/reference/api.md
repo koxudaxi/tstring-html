@@ -77,8 +77,10 @@ Reconstruct the template source with canonical formatting.
 ```python
 from html_tstring import format_template
 
-def format_template(template: Template) -> str: ...
+def format_template(template: Template, *, line_length: int = 80) -> str: ...
 ```
+
+`line_length` only affects formatting. The Python API does not read project config.
 
 ### `compile_template`
 
@@ -160,8 +162,10 @@ Reconstruct T-HTML template source with canonical formatting.
 ```python
 from thtml_tstring import format_template
 
-def format_template(template: Template) -> str: ...
+def format_template(template: Template, *, line_length: int = 80) -> str: ...
 ```
+
+`line_length` only affects formatting. The Python API does not read project config.
 
 ### `compile_template`
 

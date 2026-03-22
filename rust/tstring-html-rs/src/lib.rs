@@ -1,9 +1,28 @@
 use std::collections::BTreeMap;
 
+mod formatter;
+
 use tstring_syntax::{
     BackendError, BackendResult, Diagnostic, ErrorKind, SourceSpan, StreamItem, TemplateInput,
     TemplateInterpolation, TemplateSegment,
 };
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct FormatOptions {
+    pub line_length: usize,
+}
+
+impl Default for FormatOptions {
+    fn default() -> Self {
+        Self { line_length: 80 }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FormatFlavor {
+    Html,
+    Thtml,
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Document {
@@ -161,7 +180,9 @@ impl Parser {
             match item {
                 StreamItem::Char { ch, span } => tokens.push(Token::Char(ch, Some(span))),
                 StreamItem::Interpolation {
-                    interpolation, span, ..
+                    interpolation,
+                    span,
+                    ..
                 } => tokens.push(Token::Interpolation(interpolation, Some(span))),
                 StreamItem::Eof { .. } => tokens.push(Token::Eof),
             }
@@ -209,9 +230,7 @@ impl Parser {
                     if close_name != name {
                         return Err(parse_error(
                             "html.parse.mismatched_tag",
-                            format!(
-                                "Mismatched closing tag </{close_name}>. Expected </{name}>."
-                            ),
+                            format!("Mismatched closing tag </{close_name}>. Expected </{name}>."),
                             close_span,
                         ));
                     }
@@ -309,10 +328,7 @@ impl Parser {
             ));
         }
         self.consume_literal("-->");
-        Ok(CommentNode {
-            value,
-            span: start,
-        })
+        Ok(CommentNode { value, span: start })
     }
 
     fn parse_doctype(&mut self) -> BackendResult<DoctypeNode> {
@@ -688,9 +704,16 @@ pub fn check_template(template: &TemplateInput) -> BackendResult<()> {
 }
 
 pub fn format_template(template: &TemplateInput) -> BackendResult<String> {
+    format_template_with_options(template, &FormatOptions::default())
+}
+
+pub fn format_template_with_options(
+    template: &TemplateInput,
+    options: &FormatOptions,
+) -> BackendResult<String> {
     let document = format_template_syntax(template)?;
     validate_html_document(&document)?;
-    Ok(format_document(&document))
+    Ok(format_document_with_options(&document, options))
 }
 
 pub fn compile_template(template: &TemplateInput) -> BackendResult<CompiledHtmlTemplate> {
@@ -717,6 +740,19 @@ pub fn render_fragment(
 pub fn format_template_syntax(template: &TemplateInput) -> BackendResult<Document> {
     require_raw_source(template)?;
     parse_template(template)
+}
+
+#[must_use]
+pub fn format_document_with_options(document: &Document, options: &FormatOptions) -> String {
+    formatter::format_document(document, options, FormatFlavor::Html)
+}
+
+#[must_use]
+pub fn format_document_as_thtml_with_options(
+    document: &Document,
+    options: &FormatOptions,
+) -> String {
+    formatter::format_document(document, options, FormatFlavor::Thtml)
 }
 
 pub fn prepare_template(template: &TemplateInput) -> BackendResult<Document> {
@@ -882,10 +918,7 @@ fn validate_html_node(node: &Node) -> BackendResult<()> {
                     Node::Interpolation(interpolation) => {
                         return Err(semantic_error(
                             "html.semantic.raw_text_interpolation",
-                            format!(
-                                "Interpolations are not allowed inside <{}>.",
-                                element.name
-                            ),
+                            format!("Interpolations are not allowed inside <{}>.", element.name),
                             interpolation.span.clone(),
                         ));
                     }
@@ -957,112 +990,6 @@ fn require_raw_source(template: &TemplateInput) -> BackendResult<()> {
         }
     }
     Ok(())
-}
-
-fn format_document(document: &Document) -> String {
-    let mut out = String::new();
-    for child in &document.children {
-        format_node(child, &mut out);
-    }
-    out
-}
-
-fn format_node(node: &Node, out: &mut String) {
-    match node {
-        Node::Text(text) => out.push_str(&text.value),
-        Node::Interpolation(interpolation) => {
-            out.push_str(interpolation.raw_source.as_deref().unwrap_or("{}"))
-        }
-        Node::Comment(comment) => {
-            out.push_str("<!--");
-            out.push_str(&comment.value);
-            out.push_str("-->");
-        }
-        Node::Doctype(doctype) => {
-            out.push('<');
-            out.push('!');
-            out.push_str(&doctype.value);
-            out.push('>');
-        }
-        Node::Fragment(fragment) => {
-            for child in &fragment.children {
-                format_node(child, out);
-            }
-        }
-        Node::Element(element) => format_element_like(
-            &element.name,
-            &element.attributes,
-            &element.children,
-            element.self_closing,
-            out,
-        ),
-        Node::ComponentTag(component) => format_element_like(
-            &component.name,
-            &component.attributes,
-            &component.children,
-            component.self_closing,
-            out,
-        ),
-        Node::RawTextElement(element) => {
-            format_element_like(&element.name, &element.attributes, &element.children, false, out)
-        }
-    }
-}
-
-fn format_element_like(
-    name: &str,
-    attributes: &[AttributeLike],
-    children: &[Node],
-    self_closing: bool,
-    out: &mut String,
-) {
-    out.push('<');
-    out.push_str(name);
-    for attribute in attributes {
-        out.push(' ');
-        match attribute {
-            AttributeLike::Attribute(attribute) => {
-                out.push_str(&attribute.name);
-                if let Some(value) = &attribute.value {
-                    out.push('=');
-                    if value.quoted {
-                        out.push('"');
-                    }
-                    for part in &value.parts {
-                        match part {
-                            ValuePart::Text(text) => out.push_str(text),
-                            ValuePart::Interpolation(interpolation) => {
-                                out.push_str(interpolation.raw_source.as_deref().unwrap_or("{}"));
-                            }
-                        }
-                    }
-                    if value.quoted {
-                        out.push('"');
-                    }
-                }
-            }
-            AttributeLike::SpreadAttribute(attribute) => {
-                out.push_str(
-                    attribute
-                        .interpolation
-                        .raw_source
-                        .as_deref()
-                        .unwrap_or("{}"),
-                );
-            }
-        }
-    }
-    if self_closing {
-        out.push_str("/>");
-        return;
-    }
-    out.push('>');
-    for child in children {
-        format_node(child, out);
-    }
-    out.push_str("</");
-    out.push_str(name);
-    out.push('>');
 }
 
 fn render_document(document: &Document, context: &RuntimeContext) -> BackendResult<String> {
@@ -1195,7 +1122,11 @@ fn normalize_attributes(
 
                 let rendered = render_attribute(attribute, context)?;
                 if let Some(value) = rendered {
-                    if !normalized.order.iter().any(|entry| entry == &attribute.name) {
+                    if !normalized
+                        .order
+                        .iter()
+                        .any(|entry| entry == &attribute.name)
+                    {
                         normalized.order.push(attribute.name.clone());
                     }
                     normalized.attrs.insert(attribute.name.clone(), value);
@@ -1209,7 +1140,10 @@ fn normalize_attributes(
     Ok(normalized)
 }
 
-fn render_attribute(attribute: &Attribute, context: &RuntimeContext) -> BackendResult<Option<Option<String>>> {
+fn render_attribute(
+    attribute: &Attribute,
+    context: &RuntimeContext,
+) -> BackendResult<Option<Option<String>>> {
     match &attribute.value {
         None => Ok(Some(None)),
         Some(value) => {
@@ -1224,7 +1158,9 @@ fn render_attribute(attribute: &Attribute, context: &RuntimeContext) -> BackendR
                     RuntimeValue::Null => Ok(None),
                     RuntimeValue::Bool(false) => Ok(None),
                     RuntimeValue::Bool(true) => Ok(Some(None)),
-                    other => Ok(Some(Some(escape_html_attribute(&stringify_runtime_value(&other)?)))),
+                    other => Ok(Some(Some(escape_html_attribute(&stringify_runtime_value(
+                        &other,
+                    )?)))),
                 };
             }
             let rendered = render_attribute_value_string(value, context, &attribute.name)?;
@@ -1246,7 +1182,9 @@ fn apply_spread_attribute(
                     if !normalized.order.iter().any(|entry| entry == "class") {
                         normalized.order.push("class".to_string());
                     }
-                    normalized.class_values.extend(normalize_class_value(&value)?);
+                    normalized
+                        .class_values
+                        .extend(normalize_class_value(&value)?);
                     continue;
                 }
                 match value {
@@ -1263,12 +1201,12 @@ fn apply_spread_attribute(
                         if !normalized.order.iter().any(|entry| entry == name) {
                             normalized.order.push(name.clone());
                         }
-                        normalized
-                            .attrs
-                            .insert(
-                                name.clone(),
-                                Some(escape_html_attribute(&stringify_runtime_value_impl(&other)?)),
-                            );
+                        normalized.attrs.insert(
+                            name.clone(),
+                            Some(escape_html_attribute(&stringify_runtime_value_impl(
+                                &other,
+                            )?)),
+                        );
                     }
                 }
             }
@@ -1340,7 +1278,8 @@ fn render_attribute_value_string(
             ValuePart::Text(text) => rendered.push_str(text),
             ValuePart::Interpolation(interpolation) => {
                 if name == "class" {
-                    let normalized = normalize_class_value(value_for_interpolation(context, interpolation)?)?;
+                    let normalized =
+                        normalize_class_value(value_for_interpolation(context, interpolation)?)?;
                     if !normalized.is_empty() {
                         if !rendered.is_empty() {
                             rendered.push(' ');
@@ -1414,13 +1353,13 @@ fn normalize_class_value(value: &RuntimeValue) -> BackendResult<Vec<String>> {
             .iter()
             .filter_map(|(name, value)| truthy_runtime_value(value).then_some(name.clone()))
             .collect()),
-        RuntimeValue::Int(_) | RuntimeValue::Float(_) | RuntimeValue::RawHtml(_) => Err(
-            runtime_error(
+        RuntimeValue::Int(_) | RuntimeValue::Float(_) | RuntimeValue::RawHtml(_) => {
+            Err(runtime_error(
                 "html.runtime.class_type",
                 "Unsupported class value type.",
                 None,
-            ),
-        ),
+            ))
+        }
     }
 }
 
@@ -1441,16 +1380,19 @@ fn value_for_interpolation<'a>(
     context: &'a RuntimeContext,
     interpolation: &InterpolationNode,
 ) -> BackendResult<&'a RuntimeValue> {
-    context.values.get(interpolation.interpolation_index).ok_or_else(|| {
-        runtime_error(
-            "html.runtime.missing_value",
-            format!(
-                "Missing runtime value for interpolation '{}'.",
-                interpolation.expression
-            ),
-            interpolation.span.clone(),
-        )
-    })
+    context
+        .values
+        .get(interpolation.interpolation_index)
+        .ok_or_else(|| {
+            runtime_error(
+                "html.runtime.missing_value",
+                format!(
+                    "Missing runtime value for interpolation '{}'.",
+                    interpolation.expression
+                ),
+                interpolation.span.clone(),
+            )
+        })
 }
 
 fn stringify_runtime_value_impl(value: &RuntimeValue) -> BackendResult<String> {
@@ -1479,7 +1421,85 @@ fn escape_html_text(value: &str) -> String {
 }
 
 fn escape_html_attribute(value: &str) -> String {
-    escape_html_text(value).replace('"', "&quot;")
+    let mut out = String::new();
+    let mut index = 0usize;
+
+    while index < value.len() {
+        let ch = value[index..]
+            .chars()
+            .next()
+            .expect("valid character boundary");
+        match ch {
+            '&' => {
+                if let Some(entity_len) = html_entity_len(&value[index..]) {
+                    out.push_str(&value[index..index + entity_len]);
+                    index += entity_len;
+                } else {
+                    out.push_str("&amp;");
+                    index += 1;
+                }
+            }
+            '<' => {
+                out.push_str("&lt;");
+                index += 1;
+            }
+            '>' => {
+                out.push_str("&gt;");
+                index += 1;
+            }
+            '"' => {
+                out.push_str("&quot;");
+                index += 1;
+            }
+            _ => {
+                out.push(ch);
+                index += ch.len_utf8();
+            }
+        }
+    }
+
+    out
+}
+
+fn html_entity_len(input: &str) -> Option<usize> {
+    let bytes = input.as_bytes();
+    if !bytes.starts_with(b"&") {
+        return None;
+    }
+
+    let mut index = 1usize;
+    if bytes.get(index) == Some(&b'#') {
+        index += 1;
+        if matches!(bytes.get(index), Some(b'x' | b'X')) {
+            index += 1;
+            let start = index;
+            while bytes.get(index).is_some_and(u8::is_ascii_hexdigit) {
+                index += 1;
+            }
+            if index == start || bytes.get(index) != Some(&b';') {
+                return None;
+            }
+            return Some(index + 1);
+        }
+
+        let start = index;
+        while bytes.get(index).is_some_and(u8::is_ascii_digit) {
+            index += 1;
+        }
+        if index == start || bytes.get(index) != Some(&b';') {
+            return None;
+        }
+        return Some(index + 1);
+    }
+
+    let start = index;
+    while bytes.get(index).is_some_and(u8::is_ascii_alphanumeric) {
+        index += 1;
+    }
+    if index == start || bytes.get(index) != Some(&b';') {
+        return None;
+    }
+    Some(index + 1)
 }
 
 fn flatten_input(template: &TemplateInput) -> Vec<StreamItem> {
@@ -1520,13 +1540,17 @@ fn merge_span_opt(left: Option<SourceSpan>, right: Option<SourceSpan>) -> Option
 
 fn is_name_char(value: char, is_start: bool) -> bool {
     if is_start {
-        value.is_ascii_alphabetic() || value == '_' 
+        value.is_ascii_alphabetic() || value == '_'
     } else {
         value.is_ascii_alphanumeric() || matches!(value, '_' | '-' | ':' | '.')
     }
 }
 
-fn parse_error(code: impl Into<String>, message: impl Into<String>, span: Option<SourceSpan>) -> BackendError {
+fn parse_error(
+    code: impl Into<String>,
+    message: impl Into<String>,
+    span: Option<SourceSpan>,
+) -> BackendError {
     BackendError::parse_at(code, message, span)
 }
 
@@ -1610,8 +1634,9 @@ mod tests {
 
     #[test]
     fn html_backend_rejects_component_tags() {
-        let input =
-            TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".to_string())]);
+        let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            "<Button />".to_string(),
+        )]);
         let err = check_template(&input).expect_err("component tags must fail");
         assert_eq!(err.kind, ErrorKind::Semantic);
     }

@@ -145,6 +145,12 @@ from html_tstring import format_template
 name = "world"
 format_template(t"<div>{name}</div>")
 # '<div>{name}</div>'
+
+format_template(
+    t'<div data-a="12345" data-b="67890"></div>',
+    line_length=20,
+)
+# '<div\n  data-a="12345"\n  data-b="67890"\n></div>'
 ```
 
 ## Raw-text elements

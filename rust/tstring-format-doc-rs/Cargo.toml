@@ -1,0 +1,12 @@
+[package]
+name = "tstring-format-doc"
+description = "Internal document formatter utilities for tstring-html backends"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+unicode-width.workspace = true

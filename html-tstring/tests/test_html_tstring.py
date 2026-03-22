@@ -23,6 +23,23 @@ def test_format_template_round_trips_source() -> None:
     assert format_template(t"<div>{name}</div>") == "<div>{name}</div>"
 
 
+def test_format_template_accepts_kw_only_line_length() -> None:
+    assert (
+        format_template(
+            t'<div data-a="12345" data-b="67890"></div>',
+            line_length=20,
+        )
+        == '<div\n  data-a="12345"\n  data-b="67890"\n></div>'
+    )
+
+    try:
+        format_template(t"<div></div>", 20)  # type: ignore[misc]
+    except TypeError:
+        pass
+    else:
+        raise AssertionError("expected kw-only line_length")
+
+
 def test_check_compile_and_render_fragment_round_trip() -> None:
     name = "world"
     template = t"<div>{name}</div>"

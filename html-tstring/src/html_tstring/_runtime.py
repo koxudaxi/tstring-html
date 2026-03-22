@@ -30,9 +30,9 @@ def check_template(template: HtmlTemplate) -> None:
     _bindings.check_html_template(_validate_template(template, "check_template"))
 
 
-def format_template(template: HtmlTemplate) -> str:
+def format_template(template: HtmlTemplate, *, line_length: int = 80) -> str:
     checked = _validate_template(template, "format_template")
-    return _bindings.format_html_template(checked)
+    return _bindings.format_html_template(checked, line_length=line_length)
 
 
 def compile_template(template: HtmlTemplate) -> CompiledHtmlTemplate:

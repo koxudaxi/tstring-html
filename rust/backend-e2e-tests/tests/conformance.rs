@@ -82,8 +82,15 @@ fn html_manifest_metadata_is_100_percent_and_unique() {
     assert!(!manifest.provenance.snapshot.is_empty());
     let mut ids = BTreeSet::new();
     for case in &manifest.cases {
-        assert!(ids.insert(case.case_id.clone()), "duplicate case id {}", case.case_id);
-        assert!(matches!(case.execution_layer.as_str(), "python" | "rust" | "both"));
+        assert!(
+            ids.insert(case.case_id.clone()),
+            "duplicate case id {}",
+            case.case_id
+        );
+        assert!(matches!(
+            case.execution_layer.as_str(),
+            "python" | "rust" | "both"
+        ));
     }
 }
 
@@ -96,8 +103,15 @@ fn thtml_manifest_metadata_is_100_percent_and_unique() {
     assert!(!manifest.provenance.snapshot.is_empty());
     let mut ids = BTreeSet::new();
     for case in &manifest.cases {
-        assert!(ids.insert(case.case_id.clone()), "duplicate case id {}", case.case_id);
-        assert!(matches!(case.execution_layer.as_str(), "python" | "rust" | "both"));
+        assert!(
+            ids.insert(case.case_id.clone()),
+            "duplicate case id {}",
+            case.case_id
+        );
+        assert!(matches!(
+            case.execution_layer.as_str(),
+            "python" | "rust" | "both"
+        ));
     }
 }
 
@@ -214,7 +228,10 @@ fn html_manifest_cases_match_rust_backend() {
                 let compiled = backend_html::compile_template(&input).unwrap();
                 let classes = RuntimeValue::Sequence(vec![
                     RuntimeValue::String("btn".into()),
-                    RuntimeValue::Attributes(vec![("btn-primary".into(), RuntimeValue::Bool(true))]),
+                    RuntimeValue::Attributes(vec![(
+                        "btn-primary".into(),
+                        RuntimeValue::Bool(true),
+                    )]),
                     RuntimeValue::String("extra".into()),
                     RuntimeValue::Attributes(vec![("active".into(), RuntimeValue::Bool(true))]),
                 ]);
@@ -238,10 +255,16 @@ fn html_manifest_cases_match_rust_backend() {
                     &runtime(vec![
                         RuntimeValue::Sequence(vec![
                             RuntimeValue::String("extra".into()),
-                            RuntimeValue::Attributes(vec![("active".into(), RuntimeValue::Bool(true))]),
+                            RuntimeValue::Attributes(vec![(
+                                "active".into(),
+                                RuntimeValue::Bool(true),
+                            )]),
                         ]),
                         RuntimeValue::String("tail".into()),
-                        RuntimeValue::Attributes(vec![("data-id".into(), RuntimeValue::String("2".into()))]),
+                        RuntimeValue::Attributes(vec![(
+                            "data-id".into(),
+                            RuntimeValue::String("2".into()),
+                        )]),
                     ]),
                 )
                 .unwrap();
@@ -255,8 +278,12 @@ fn html_manifest_cases_match_rust_backend() {
                 ]);
                 let compiled = backend_html::compile_template(&input).unwrap();
                 let err =
-                    backend_html::render_html(&compiled, &runtime(vec![RuntimeValue::Int(1)])).unwrap_err();
-                assert_eq!(case.expected_error.as_deref(), Some("TemplateSemanticError"));
+                    backend_html::render_html(&compiled, &runtime(vec![RuntimeValue::Int(1)]))
+                        .unwrap_err();
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
                 assert!(err.message.contains("mapping-like"));
             }
             "fragment-children" => {
@@ -299,9 +326,14 @@ fn html_manifest_cases_match_rust_backend() {
                 assert_eq!(rendered, case.expected.as_deref().unwrap());
             }
             "component-rejected" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<Button />".into(),
+                )]);
                 let err = backend_html::check_template(&input).unwrap_err();
-                assert_eq!(case.expected_error.as_deref(), Some("TemplateSemanticError"));
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
                 assert!(err.message.contains("Component tag"));
             }
             "raw-text-script-rejected" => {
@@ -311,7 +343,10 @@ fn html_manifest_cases_match_rust_backend() {
                     TemplateSegment::StaticText("</script>".into()),
                 ]);
                 let err = backend_html::check_template(&input).unwrap_err();
-                assert_eq!(case.expected_error.as_deref(), Some("TemplateSemanticError"));
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
                 assert!(err.message.contains("<script>"));
             }
             "raw-text-style-rejected" => {
@@ -342,13 +377,16 @@ fn html_manifest_cases_match_rust_backend() {
                 assert!(err.message.contains("<textarea>"));
             }
             "parse-mismatched-tag" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div></span>".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<div></span>".into(),
+                )]);
                 let err = backend_html::check_template(&input).unwrap_err();
                 assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
                 assert_eq!(err.diagnostics[0].code, "html.parse.mismatched_tag");
             }
             "parse-unclosed-tag" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div".into())]);
+                let input =
+                    TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div".into())]);
                 let err = backend_html::check_template(&input).unwrap_err();
                 assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
                 assert_eq!(err.kind, tstring_syntax::ErrorKind::Parse);
@@ -402,13 +440,24 @@ fn html_manifest_cases_match_rust_backend() {
                     TemplateSegment::StaticText("></div>".into()),
                 ]);
                 let err = backend_html::check_template(&input).unwrap_err();
-                assert!(err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+                assert!(
+                    err.diagnostics
+                        .first()
+                        .and_then(|d| d.span.as_ref())
+                        .is_some()
+                );
             }
             "semantic-component-primary-span" => {
-                let input =
-                    TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<Button />".into(),
+                )]);
                 let err = backend_html::check_template(&input).unwrap_err();
-                assert!(err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+                assert!(
+                    err.diagnostics
+                        .first()
+                        .and_then(|d| d.span.as_ref())
+                        .is_some()
+                );
             }
             "class-bool-rejected" => {
                 let input = TemplateInput::from_segments(vec![
@@ -417,7 +466,9 @@ fn html_manifest_cases_match_rust_backend() {
                     TemplateSegment::StaticText("\"></button>".into()),
                 ]);
                 let compiled = backend_html::compile_template(&input).unwrap();
-                let err = backend_html::render_html(&compiled, &runtime(vec![RuntimeValue::Bool(true)])).unwrap_err();
+                let err =
+                    backend_html::render_html(&compiled, &runtime(vec![RuntimeValue::Bool(true)]))
+                        .unwrap_err();
                 assert!(err.message.to_lowercase().contains("class"));
             }
             "format-missing-raw-source" => {
@@ -438,7 +489,12 @@ fn html_manifest_cases_match_rust_backend() {
                 ]);
                 assert_eq!(
                     backend_html::static_key_parts(&input),
-                    vec![String::new(), String::new(), "<div>".to_owned(), String::new()]
+                    vec![
+                        String::new(),
+                        String::new(),
+                        "<div>".to_owned(),
+                        String::new()
+                    ]
                 );
             }
             "static-key-concatenate-adjacent" => {
@@ -455,9 +511,16 @@ fn html_manifest_cases_match_rust_backend() {
                 );
             }
             "invalid-template-primary-span" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div></span>".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<div></span>".into(),
+                )]);
                 let err = backend_html::check_template(&input).unwrap_err();
-                assert!(err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+                assert!(
+                    err.diagnostics
+                        .first()
+                        .and_then(|d| d.span.as_ref())
+                        .is_some()
+                );
             }
             other => panic!("unhandled HTML rust conformance case {other}"),
         }
@@ -519,7 +582,9 @@ fn thtml_manifest_cases_match_rust_seam() {
                 assert!(err.message.contains("<textarea>"));
             }
             "html-vs-thtml-split" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<Button />".into(),
+                )]);
                 let err = backend_html::check_template(&input).unwrap_err();
                 assert!(err.message.contains("Component tag"));
             }
@@ -539,7 +604,12 @@ fn thtml_manifest_cases_match_rust_seam() {
                     TemplateSegment::StaticText(" />".into()),
                 ]);
                 let err = backend_thtml::check_template(&input).unwrap_err();
-                assert!(err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+                assert!(
+                    err.diagnostics
+                        .first()
+                        .and_then(|d| d.span.as_ref())
+                        .is_some()
+                );
             }
             "semantic-raw-text-primary-span" => {
                 let input = TemplateInput::from_segments(vec![
@@ -548,26 +618,37 @@ fn thtml_manifest_cases_match_rust_seam() {
                     TemplateSegment::StaticText("</script>".into()),
                 ]);
                 let err = backend_thtml::check_template(&input).unwrap_err();
-                assert!(err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+                assert!(
+                    err.diagnostics
+                        .first()
+                        .and_then(|d| d.span.as_ref())
+                        .is_some()
+                );
             }
             "parse-mismatched-tag" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div".into())]);
+                let input =
+                    TemplateInput::from_segments(vec![TemplateSegment::StaticText("<div".into())]);
                 let err = backend_thtml::check_template(&input).unwrap_err();
                 assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
                 assert_eq!(err.kind, tstring_syntax::ErrorKind::Parse);
                 assert!(err.diagnostics[0].code.starts_with("html.parse.unclosed"));
             }
             "parse-unclosed-tag" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<Button".into(),
+                )]);
                 let err = backend_thtml::check_template(&input).unwrap_err();
                 assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
                 assert_eq!(err.kind, tstring_syntax::ErrorKind::Parse);
                 assert!(err.diagnostics[0].code.starts_with("html.parse.unclosed"));
             }
             "runtime-without-bindings" => {
-                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".into())]);
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<Button />".into(),
+                )]);
                 let compiled = backend_thtml::compile_template(&input).unwrap();
-                let err = backend_thtml::render_html(&compiled, &RuntimeContext::default()).unwrap_err();
+                let err =
+                    backend_thtml::render_html(&compiled, &RuntimeContext::default()).unwrap_err();
                 assert!(err.message.contains("bindings layer runtime"));
             }
             "format-missing-raw-source" => {
