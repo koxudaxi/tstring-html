@@ -15,6 +15,7 @@ import argparse
 import re
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).parent.parent
@@ -24,6 +25,7 @@ EXCLUDE_FILES = {"changelog.md"}
 PATTERN = re.compile(
     r"((html-tstring|thtml-tstring|tstring-html-bindings)==)(\d+\.\d+\.\d+)"
 )
+SEMVER_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def get_latest_release_version() -> str:
@@ -45,7 +47,42 @@ def get_latest_release_version() -> str:
         text=True,
         check=True,
     )
-    return result.stdout.strip()
+    return normalize_version(result.stdout.strip())
+
+
+def get_workspace_version() -> str:
+    """Get the current workspace version from pyproject.toml."""
+    with (ROOT_DIR / "pyproject.toml").open("rb") as handle:
+        return tomllib.load(handle)["project"]["version"]
+
+
+def normalize_version(value: str) -> str:
+    """Normalize a Git tag or version string to plain semver."""
+    return value.removeprefix("refs/tags/").removeprefix("v").removeprefix("V")
+
+
+def resolve_target_version() -> str:
+    """Pick the best docs version for the current repository state."""
+    try:
+        release_version = get_latest_release_version()
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"Warning: could not read latest release: {e}", file=sys.stderr)
+        release_version = ""
+
+    if SEMVER_PATTERN.fullmatch(release_version):
+        return release_version
+
+    workspace_version = get_workspace_version()
+    if SEMVER_PATTERN.fullmatch(workspace_version):
+        print(
+            f"Using workspace version {workspace_version} for docs updates.",
+            file=sys.stderr,
+        )
+        return workspace_version
+
+    raise ValueError(
+        "Could not determine a semantic version from releases or workspace metadata."
+    )
 
 
 def update_file(file_path: Path, version: str, *, check: bool = False) -> bool:
@@ -75,9 +112,9 @@ def main() -> int:
     args = parser.parse_args()
 
     try:
-        version = get_latest_release_version()
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        print(f"Error getting latest release: {e}", file=sys.stderr)
+        version = resolve_target_version()
+    except (ValueError, KeyError, tomllib.TOMLDecodeError) as e:
+        print(f"Error resolving docs version: {e}", file=sys.stderr)
         return 1
 
     # Update docs directory and README.md (exclude generated files like changelog)
