@@ -217,6 +217,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          verbose: true
 
   publish-html-tstring:
     needs: [build-package, publish-bindings]
@@ -242,6 +243,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          verbose: true
 
   publish-thtml-tstring:
     needs: [build-package, publish-bindings]
@@ -267,3 +269,4 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: upload
+          verbose: true
