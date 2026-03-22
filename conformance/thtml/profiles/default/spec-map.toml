@@ -1,0 +1,382 @@
+spec_title = "tstring-html v1 T-HTML"
+claim_status = "100%"
+
+[provenance]
+source = "repo-local v1 T-HTML contract"
+snapshot = "2026-03-22"
+
+[[cases]]
+case_id = "component-basic-caller-scope"
+spec_ref = "v1.thtml.component-caller-scope"
+operation = "render_html"
+expected = "<button kind=\"primary\">Save</button>"
+execution_layer = "python"
+note = "PascalCase components resolve from caller scope."
+
+[[cases]]
+case_id = "component-explicit-scope"
+spec_ref = "v1.thtml.component-explicit-scope"
+operation = "render_html"
+expected = "<button kind=\"secondary\">Save</button>"
+execution_layer = "python"
+note = "Explicit globals/locals override frame lookup."
+
+[[cases]]
+case_id = "locals-over-globals"
+spec_ref = "v1.thtml.locals-over-globals"
+operation = "render_html"
+expected = "<button kind=\"local\">Save</button>"
+execution_layer = "python"
+note = "locals take precedence over globals during component resolution."
+
+[[cases]]
+case_id = "missing-component"
+spec_ref = "v1.thtml.component-missing"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "Missing component lookup is a runtime resolution error."
+
+[[cases]]
+case_id = "non-callable-component"
+spec_ref = "v1.thtml.component-non-callable"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "Resolved components must be callable."
+
+[[cases]]
+case_id = "component-spread"
+spec_ref = "v1.thtml.component-spread"
+operation = "render_html"
+expected = "<button kind=\"secondary\">Save</button>"
+execution_layer = "python"
+note = "Spread attrs merge into component props."
+
+[[cases]]
+case_id = "component-class-spread"
+spec_ref = "v1.thtml.component-class-spread"
+operation = "render_html"
+expected = "<button kind=\"primary\" class=\"button button--primary\">Save</button>"
+execution_layer = "python"
+note = "Class spread values normalize and preserve truthy mapping keys."
+
+[[cases]]
+case_id = "component-spread-override"
+spec_ref = "v1.thtml.component-spread-override"
+operation = "render_html"
+expected = "<button kind=\"secondary\">Save</button>"
+execution_layer = "python"
+note = "Later spread props override earlier explicit component props."
+
+[[cases]]
+case_id = "html-element-attr-merge"
+spec_ref = "v1.thtml.html-element-attrs"
+operation = "render_html"
+expected = "<div class=\"base extra active tail\" data-id=\"2\">content</div>"
+execution_layer = "python"
+note = "HTML elements inside T-HTML follow the same attr/class/spread rules as HTML."
+
+[[cases]]
+case_id = "component-prop-html-names"
+spec_ref = "v1.thtml.component-prop-html-names"
+operation = "render_html"
+expected = "primary|Save button|Save"
+execution_layer = "python"
+note = "Component props keep their HTML-facing names such as class and aria-label."
+
+[[cases]]
+case_id = "component-spread-non-mapping"
+spec_ref = "v1.thtml.component-spread-type"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "Non-mapping component spread values are rejected."
+
+[[cases]]
+case_id = "children-raw-html"
+spec_ref = "v1.thtml.children-raw-html"
+operation = "render_html"
+expected = "<b>x</b>"
+execution_layer = "python"
+note = "Interpolated RawHtml remains RawHtml when passed as children."
+
+[[cases]]
+case_id = "children-list"
+spec_ref = "v1.thtml.children-list"
+operation = "render_html"
+expected = "a,b"
+execution_layer = "python"
+note = "Interpolated iterables remain lists when passed as children."
+
+[[cases]]
+case_id = "children-list-scalars"
+spec_ref = "v1.thtml.children-list-scalars"
+operation = "render_html"
+expected = "a,1,2.5,True,b,c"
+execution_layer = "python"
+note = "Scalar children and nested lists are normalized before rendering."
+
+[[cases]]
+case_id = "children-fragment"
+spec_ref = "v1.thtml.children-fragment"
+operation = "render_html"
+expected = "<ok />"
+execution_layer = "python"
+note = "Interpolated Fragment values remain Fragment when passed as children."
+
+[[cases]]
+case_id = "literal-child-markup-becomes-raw-html"
+spec_ref = "v1.thtml.children-literal-markup"
+operation = "render_html"
+expected = "<span>child</span>"
+execution_layer = "python"
+note = "Literal nested markup is normalized to RawHtml for component children."
+
+[[cases]]
+case_id = "component-return-list"
+spec_ref = "v1.thtml.component-return-list"
+operation = "render_html"
+expected = "<section>Save</section>"
+execution_layer = "python"
+note = "Components may return iterables that flatten into output."
+
+[[cases]]
+case_id = "component-return-none"
+spec_ref = "v1.thtml.component-return-none"
+operation = "render_html"
+expected = ""
+execution_layer = "python"
+note = "Components may return None for empty output."
+
+[[cases]]
+case_id = "component-return-scalar"
+spec_ref = "v1.thtml.component-return-scalar"
+operation = "render_html"
+expected = "42"
+execution_layer = "python"
+note = "Scalar component return values render as escaped text."
+
+[[cases]]
+case_id = "component-return-float"
+spec_ref = "v1.thtml.component-return-float"
+operation = "render_html"
+expected = "2.5"
+execution_layer = "python"
+note = "Float component return values render as escaped text."
+
+[[cases]]
+case_id = "component-return-bool"
+spec_ref = "v1.thtml.component-return-bool"
+operation = "render_html"
+expected = "true"
+execution_layer = "python"
+note = "Bool component return values render as escaped text using renderer scalar stringification."
+
+[[cases]]
+case_id = "nested-components"
+spec_ref = "v1.thtml.nested-components"
+operation = "render_html"
+expected = "<div class=\"card\"><h2>Status</h2><span class=\"badge\">new</span></div>"
+execution_layer = "python"
+note = "Components can nest inside other components."
+
+[[cases]]
+case_id = "component-auto-wrap-template"
+spec_ref = "v1.thtml.component-auto-wrap-template"
+operation = "render_html"
+expected = "<div class=\"card\"><h2>Status</h2><div class=\"body\"><span class=\"badge badge-success\">active</span></div></div>"
+execution_layer = "python"
+note = "Decorated components may return Template values and are auto-wrapped into deferred Renderable output."
+
+[[cases]]
+case_id = "component-explicit-renderable-wrap"
+spec_ref = "v1.thtml.component-explicit-renderable-wrap"
+operation = "render_html"
+expected = "<span class=\"badge badge-success\">active</span>"
+execution_layer = "python"
+note = "Components may explicitly return thtml(...) renderables instead of relying on decorator auto-wrap."
+
+[[cases]]
+case_id = "renderable-captures-scope"
+spec_ref = "v1.thtml.renderable-captured-scope"
+operation = "render_html"
+expected = "<span>captured</span>"
+execution_layer = "python"
+note = "thtml(...) captures the immediate caller scope at construction time and can be rendered later."
+
+[[cases]]
+case_id = "renderable-scope-frozen"
+spec_ref = "v1.thtml.renderable-frozen-scope"
+operation = "render_html"
+expected = "<span>captured</span>"
+execution_layer = "python"
+note = "A captured T-HTML Renderable keeps its original component bindings even after names are rebound."
+
+[[cases]]
+case_id = "renderable-ignores-later-overrides"
+spec_ref = "v1.thtml.renderable-frozen-scope-overrides"
+operation = "render_html"
+expected = "<span>captured</span>"
+execution_layer = "python"
+note = "Rendering an existing Renderable ignores later globals/locals overrides and uses captured scope."
+
+[[cases]]
+case_id = "component-return-string-is-text"
+spec_ref = "v1.thtml.component-return-string-is-text"
+operation = "render_html"
+expected = "&lt;b&gt;unsafe&lt;/b&gt;"
+execution_layer = "python"
+note = "Plain string component return values are still escaped text, not raw HTML."
+
+[[cases]]
+case_id = "auto-wrap-uses-defining-globals"
+spec_ref = "v1.thtml.component-auto-wrap-defining-globals"
+operation = "render_html"
+expected = "<span class=\"badge badge-info\">ok</span>"
+execution_layer = "python"
+note = "Auto-wrapped Template return values resolve nested tags from the component's defining module globals."
+
+[[cases]]
+case_id = "html-renderable-inside-thtml"
+spec_ref = "v1.thtml.cross-backend-renderable-child"
+operation = "render_html"
+expected = "<strong>active</strong>"
+execution_layer = "python"
+note = "An HTML Renderable can be embedded inside T-HTML as trusted child HTML."
+
+[[cases]]
+case_id = "compiled-render-scope-per-call"
+spec_ref = "v1.thtml.compiled-render-scope"
+operation = "compile_render"
+expected = "<strong tone=\"info\">Two</strong>"
+execution_layer = "python"
+note = "Compiled T-HTML templates use the globals/locals passed to each render call instead of caching component bindings."
+
+[[cases]]
+case_id = "partial-scope-globals-only"
+spec_ref = "v1.thtml.partial-scope-globals"
+operation = "render_html"
+expected = "<span>g</span>"
+execution_layer = "python"
+note = "Providing globals= only still captures caller locals from the immediate frame."
+
+[[cases]]
+case_id = "partial-scope-locals-only"
+spec_ref = "v1.thtml.partial-scope-locals"
+operation = "render_html"
+expected = "<span>l</span>"
+execution_layer = "python"
+note = "Providing locals= only still captures caller globals from the immediate frame."
+
+[[cases]]
+case_id = "format-roundtrip"
+spec_ref = "v1.thtml.format"
+operation = "format_template"
+expected = "<Button>{label}</Button>"
+execution_layer = "both"
+note = "Formatter preserves raw source for interpolation."
+
+[[cases]]
+case_id = "raw-text-script-rejected"
+spec_ref = "v1.thtml.raw-text-script"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in raw-text elements are rejected in T-HTML too."
+
+[[cases]]
+case_id = "raw-text-style-rejected"
+spec_ref = "v1.thtml.raw-text-style"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <style> are rejected in T-HTML too."
+
+[[cases]]
+case_id = "raw-text-title-rejected"
+spec_ref = "v1.thtml.raw-text-title"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <title> are rejected in T-HTML too."
+
+[[cases]]
+case_id = "raw-text-textarea-rejected"
+spec_ref = "v1.thtml.raw-text-textarea"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <textarea> are rejected in T-HTML too."
+
+[[cases]]
+case_id = "html-vs-thtml-split"
+spec_ref = "v1.thtml.component-rejection"
+operation = "html_check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "The plain HTML backend rejects PascalCase component tags."
+
+[[cases]]
+case_id = "unquoted-dynamic-attr-rejected"
+spec_ref = "v1.thtml.unquoted-dynamic-attr"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Dynamic attrs must be quoted in T-HTML too."
+
+[[cases]]
+case_id = "semantic-attr-primary-span"
+spec_ref = "v1.thtml.semantic-attr-primary-span"
+operation = "check_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "T-HTML semantic attr failures on the seam retain a primary diagnostic span."
+
+[[cases]]
+case_id = "semantic-raw-text-primary-span"
+spec_ref = "v1.thtml.semantic-raw-text-primary-span"
+operation = "check_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "T-HTML raw-text semantic failures on the seam retain a primary diagnostic span."
+
+[[cases]]
+case_id = "parse-mismatched-tag"
+spec_ref = "v1.thtml.parse-error"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "both"
+note = "Malformed tags raise parse diagnostics."
+
+[[cases]]
+case_id = "parse-unclosed-tag"
+spec_ref = "v1.thtml.parse-unclosed-tag"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "both"
+note = "Unclosed tags raise parse diagnostics in T-HTML too."
+
+[[cases]]
+case_id = "caller-frame-local-component"
+spec_ref = "v1.thtml.caller-frame"
+operation = "render_html"
+expected = "<span>x</span>"
+execution_layer = "python"
+note = "html() resolves components from the immediate caller frame."
+
+[[cases]]
+case_id = "runtime-without-bindings"
+spec_ref = "v1.thtml.runtime-without-bindings"
+operation = "render_html"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "Rendering component tags without the bindings layer runtime is a runtime error."
+
+[[cases]]
+case_id = "format-missing-raw-source"
+spec_ref = "v1.thtml.format-raw-source"
+operation = "format_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "Formatting on the TemplateInput seam requires raw_source for every interpolation."

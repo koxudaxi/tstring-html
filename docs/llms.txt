@@ -1,0 +1,25 @@
+# tstring-html
+
+> Parser-first HTML and T-HTML backends for PEP 750 template strings
+
+- [T-strings for HTML](https://tstring-html.koxudaxi.dev/): Parser-first HTML and T-HTML backends for [PEP 750](https://peps.python.org/pep-0750/) template strings.
+## Getting Started
+
+- [Installation](https://tstring-html.koxudaxi.dev/getting-started/installation/): Requires Python 3.14+ ([PEP 750](https://peps.python.org/pep-0750/) t-strings).
+- [Quick Start](https://tstring-html.koxudaxi.dev/getting-started/quick-start/)
+
+## Usage
+
+- [HTML](https://tstring-html.koxudaxi.dev/usage/html/): The `html-tstring` package renders PEP 750 t-string templates to safe HTML.
+- [T-HTML (Components)](https://tstring-html.koxudaxi.dev/usage/thtml/)
+- [Error Handling](https://tstring-html.koxudaxi.dev/usage/error-handling/): f-strings silently produce broken or dangerous HTML. t-string backends catch these problems at parse time or render time.
+- [Editor Integration (t-linter)](https://tstring-html.koxudaxi.dev/usage/editor-integration/): [t-linter](https://github.com/koxudaxi/t-linter) is a linter, formatter, and LSP server for Python template strings (PEP 750 t-strings). It uses th...
+
+- [Architecture](https://tstring-html.koxudaxi.dev/architecture/)
+## Reference
+
+- [API Reference](https://tstring-html.koxudaxi.dev/reference/api/): Both packages expose similar interfaces. The T-HTML package adds component-aware rendering and the `Renderable` type.
+
+## Optional
+
+- [Development Setup](https://tstring-html.koxudaxi.dev/development/setup/)

@@ -1,0 +1,65 @@
+[project]
+name = "tstring-html-workspace"
+version = "0.1.0"
+description = "Workspace for parser-first HTML and T-HTML PEP 750 backends"
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "html-tstring>=0.1.0",
+    "thtml-tstring>=0.1.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "coverage[toml]>=7.8.0",
+    "html-tstring>=0.1.0",
+    "maturin>=1.8.0",
+    "pytest>=8.4.0",
+    "ruff>=0.11.0",
+    "thtml-tstring>=0.1.0",
+    "ty>=0.0.23",
+    "twine>=6.1.0",
+]
+docs = [
+    "zensical>=0.0.15",
+]
+
+[tool.uv.workspace]
+members = [
+    "html-tstring",
+    "rust/tstring-html-bindings",
+    "thtml-tstring",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+html-tstring = { workspace = true }
+thtml-tstring = { workspace = true }
+tstring-html-bindings = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = [
+    "html-tstring/tests",
+    "thtml-tstring/tests",
+    "tests",
+]
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["html_tstring", "thtml_tstring"]
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 100
+
+[tool.ruff]
+target-version = "py314"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I"]

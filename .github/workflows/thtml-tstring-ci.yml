@@ -1,0 +1,63 @@
+name: thtml-tstring CI
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/thtml-tstring-ci.yml"
+      - "conformance/**"
+      - "examples/**"
+      - "rust/**"
+      - "tests/**"
+      - "thtml-tstring/**"
+  pull_request:
+    paths:
+      - ".github/workflows/thtml-tstring-ci.yml"
+      - "conformance/**"
+      - "examples/**"
+      - "rust/**"
+      - "tests/**"
+      - "thtml-tstring/**"
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          python-version: "3.14"
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@1.94.0
+
+      - name: Sync development dependencies
+        run: uv sync --group dev
+
+      - name: Configure PyO3 test environment
+        shell: bash
+        run: |
+          PYTHON_BIN="$(uv run --group dev python - <<'PY'
+          import sys
+          print(sys.executable)
+          PY
+          )"
+          echo "PYO3_PYTHON=$PYTHON_BIN" >> "$GITHUB_ENV"
+
+      - name: Check formatting
+        run: uv run ruff format --check thtml-tstring tests examples
+
+      - name: Run lint
+        run: uv run ruff check thtml-tstring tests examples
+
+      - name: Run thtml-tstring tests
+        run: uv run pytest thtml-tstring/tests tests/test_examples.py -q
+
+      - name: Run Rust T-HTML tests
+        run: cargo test --manifest-path rust/Cargo.toml -p tstring-thtml -p tstring-html-backend-e2e-tests --tests

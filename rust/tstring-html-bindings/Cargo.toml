@@ -1,0 +1,26 @@
+[package]
+name = "tstring-html-bindings"
+description = "Native Python bindings for tstring-html"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+name = "tstring_html_bindings"
+crate-type = ["cdylib"]
+
+[features]
+default = []
+extension-module = ["pyo3/extension-module"]
+
+[dependencies]
+pyo3 = { workspace = true, features = ["abi3-py314"] }
+tstring-html = { version = "0.1.0", path = "../tstring-html-rs" }
+tstring-thtml = { version = "0.1.0", path = "../tstring-thtml-rs" }
+tstring-syntax.workspace = true
+
+[dev-dependencies]
+pyo3 = { workspace = true, features = ["auto-initialize"] }

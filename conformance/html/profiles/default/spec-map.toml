@@ -1,0 +1,278 @@
+spec_title = "tstring-html v1 HTML"
+claim_status = "100%"
+
+[provenance]
+source = "repo-local v1 HTML contract"
+snapshot = "2026-03-22"
+
+[[cases]]
+case_id = "escaped-child"
+spec_ref = "v1.html.text-escaping"
+operation = "render_html"
+expected = "<div>&lt;world&gt;</div>"
+execution_layer = "both"
+note = "Interpolated child text is HTML-escaped."
+
+[[cases]]
+case_id = "raw-html-child"
+spec_ref = "v1.html.raw-html-child"
+operation = "render_html"
+expected = "<div><strong>safe</strong></div>"
+execution_layer = "both"
+note = "RawHtml is inserted as raw HTML in child position."
+
+[[cases]]
+case_id = "renderable-child"
+spec_ref = "v1.html.renderable-child"
+operation = "render_html"
+expected = "<div><strong>safe</strong></div>"
+execution_layer = "python"
+note = "Renderable values are inserted as trusted renderer-produced HTML in child position."
+
+[[cases]]
+case_id = "render-html-accepts-renderable"
+spec_ref = "v1.html.renderable-entrypoint"
+operation = "render_html"
+expected = "<strong>safe</strong>"
+execution_layer = "python"
+note = "render_html accepts a deferred Renderable in addition to a Template."
+
+[[cases]]
+case_id = "raw-html-attribute-escaped"
+spec_ref = "v1.html.raw-html-attribute"
+operation = "render_html"
+expected = "<div title=\"&lt;b&gt;x&lt;/b&gt;\"></div>"
+execution_layer = "both"
+note = "RawHtml used in an attribute is stringified and escaped."
+
+[[cases]]
+case_id = "raw-html-spread-escaped"
+spec_ref = "v1.html.raw-html-spread"
+operation = "render_html"
+expected = "<div title=\"&lt;b&gt;x&lt;/b&gt;\"></div>"
+execution_layer = "both"
+note = "RawHtml used in spread attributes is stringified and escaped."
+
+[[cases]]
+case_id = "renderable-attribute-escaped"
+spec_ref = "v1.html.renderable-attribute"
+operation = "render_html"
+expected = "<div title=\"&lt;strong&gt;world&lt;/strong&gt;\"></div>"
+execution_layer = "python"
+note = "Renderable values in attribute position are stringified and escaped, not injected as raw HTML."
+
+[[cases]]
+case_id = "renderable-spread-escaped"
+spec_ref = "v1.html.renderable-spread"
+operation = "render_html"
+expected = "<div title=\"&lt;strong&gt;world&lt;/strong&gt;\"></div>"
+execution_layer = "python"
+note = "Renderable values inside spread attrs are stringified and escaped."
+
+[[cases]]
+case_id = "thtml-renderable-child"
+spec_ref = "v1.html.cross-backend-renderable-child"
+operation = "render_html"
+expected = "<div><span>active</span></div>"
+execution_layer = "python"
+note = "A T-HTML Renderable can be embedded into plain HTML as trusted child HTML."
+
+[[cases]]
+case_id = "quoted-dynamic-attribute"
+spec_ref = "v1.html.quoted-dynamic-attr"
+operation = "render_html"
+expected = "<a href=\"/dashboard\">Dashboard</a>"
+execution_layer = "both"
+note = "Quoted dynamic attributes render correctly."
+
+[[cases]]
+case_id = "boolean-attribute-bare-and-omitted"
+spec_ref = "v1.html.boolean-attrs"
+operation = "render_html"
+expected = "<button disabled>OK</button>"
+execution_layer = "both"
+note = "True renders a bare attr; False and None omit attrs."
+
+[[cases]]
+case_id = "class-normalization"
+spec_ref = "v1.html.class-normalization"
+operation = "render_html"
+expected = "<button class=\"btn btn-primary extra active\"></button>"
+execution_layer = "both"
+note = "Class normalization flattens strings, iterables, and truthy mapping keys."
+
+[[cases]]
+case_id = "spread-merge-order"
+spec_ref = "v1.html.spread-merge"
+operation = "render_html"
+expected = "<div class=\"base extra active tail\" data-id=\"2\"></div>"
+execution_layer = "both"
+note = "Spread attrs merge left-to-right; class contributions concatenate."
+
+[[cases]]
+case_id = "spread-non-mapping-error"
+spec_ref = "v1.html.spread-type-error"
+operation = "render_html"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Non-mapping spread values are rejected."
+
+[[cases]]
+case_id = "fragment-children"
+spec_ref = "v1.html.fragment-children"
+operation = "render_html"
+expected = "<div><em>first</em>second</div>"
+execution_layer = "both"
+note = "Fragment children flatten into the surrounding child position."
+
+[[cases]]
+case_id = "render-fragment"
+spec_ref = "v1.html.render-fragment"
+operation = "render_fragment"
+expected = "<p>world</p>"
+execution_layer = "both"
+note = "render_fragment renders the template body without wrapper logic."
+
+[[cases]]
+case_id = "comment-and-doctype"
+spec_ref = "v1.html.comments-doctype"
+operation = "render_html"
+expected = "<!DOCTYPE html><!--x--><div>ok</div>"
+execution_layer = "both"
+note = "Comments and doctypes round-trip through rendering."
+
+[[cases]]
+case_id = "component-rejected"
+spec_ref = "v1.html.component-rejection"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "The plain HTML backend rejects PascalCase component tags."
+
+[[cases]]
+case_id = "raw-text-script-rejected"
+spec_ref = "v1.html.raw-text-script"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <script> are rejected."
+
+[[cases]]
+case_id = "raw-text-style-rejected"
+spec_ref = "v1.html.raw-text-style"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <style> are rejected."
+
+[[cases]]
+case_id = "raw-text-title-rejected"
+spec_ref = "v1.html.raw-text-title"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <title> are rejected."
+
+[[cases]]
+case_id = "raw-text-textarea-rejected"
+spec_ref = "v1.html.raw-text-textarea"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Interpolations in <textarea> are rejected."
+
+[[cases]]
+case_id = "parse-mismatched-tag"
+spec_ref = "v1.html.parse-mismatched-tag"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "both"
+note = "Mismatched closing tags are parse errors."
+
+[[cases]]
+case_id = "parse-unclosed-tag"
+spec_ref = "v1.html.parse-unclosed-tag"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "both"
+note = "Unclosed tags are parse errors."
+
+[[cases]]
+case_id = "format-roundtrip"
+spec_ref = "v1.html.format-roundtrip"
+operation = "format_template"
+expected = "<div>{name}</div>"
+execution_layer = "both"
+note = "Formatter preserves interpolation raw source."
+
+[[cases]]
+case_id = "format-rich-roundtrip"
+spec_ref = "v1.html.format-roundtrip-rich"
+operation = "format_template"
+expected = "<div data-repr=\"{value!r}\">{amount:.2f}</div>"
+execution_layer = "rust"
+note = "Formatter preserves conversion and format spec metadata via raw_source on the seam."
+
+[[cases]]
+case_id = "unquoted-dynamic-attr-rejected"
+spec_ref = "v1.html.unquoted-dynamic-attr"
+operation = "check_template"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Dynamic attributes must be quoted."
+
+[[cases]]
+case_id = "semantic-attr-primary-span"
+spec_ref = "v1.html.semantic-attr-primary-span"
+operation = "check_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "Semantic attr failures on the seam retain a primary diagnostic span."
+
+[[cases]]
+case_id = "semantic-component-primary-span"
+spec_ref = "v1.html.semantic-component-primary-span"
+operation = "check_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "HTML-backend component rejection on the seam retains a primary diagnostic span."
+
+[[cases]]
+case_id = "class-bool-rejected"
+spec_ref = "v1.html.class-bool-rejected"
+operation = "render_html"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Boolean values are not valid dynamic class scalars."
+
+[[cases]]
+case_id = "format-missing-raw-source"
+spec_ref = "v1.html.format-raw-source"
+operation = "format_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "Formatting on the TemplateInput seam requires raw_source for every interpolation."
+
+[[cases]]
+case_id = "static-key-empty-boundaries"
+spec_ref = "v1.html.cache-key-empty-boundaries"
+operation = "static_key_parts"
+expected = "[\"\", \"\", \"<div>\", \"\"]"
+execution_layer = "rust"
+note = "Static key derivation preserves leading, trailing, and adjacent empty boundaries."
+
+[[cases]]
+case_id = "static-key-concatenate-adjacent"
+spec_ref = "v1.html.cache-key-adjacent-static"
+operation = "static_key_parts"
+expected = "[\"<div>\", \"</div>\"]"
+execution_layer = "rust"
+note = "Adjacent static segments within a boundary interval are concatenated."
+
+[[cases]]
+case_id = "invalid-template-primary-span"
+spec_ref = "v1.html.primary-diagnostic-span"
+operation = "check_template"
+expected_error = "BackendError"
+execution_layer = "rust"
+note = "Malformed templates on the seam include a primary diagnostic span."

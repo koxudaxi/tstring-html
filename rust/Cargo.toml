@@ -1,0 +1,21 @@
+[workspace]
+members = [
+    "backend-e2e-tests",
+    "tstring-html-bindings",
+    "tstring-html-rs",
+    "tstring-thtml-rs",
+]
+resolver = "2"
+
+[workspace.package]
+authors = ["Koudai Aono <koxudaxi@gmail.com>"]
+edition = "2024"
+homepage = "https://github.com/koxudaxi/tstring-html"
+license = "MIT"
+repository = "https://github.com/koxudaxi/tstring-html"
+rust-version = "1.94.0"
+version = "0.1.0"
+
+[workspace.dependencies]
+pyo3 = "0.27.1"
+tstring-syntax = { version = "=0.2.1" }

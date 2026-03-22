@@ -1,0 +1,47 @@
+[project]
+name = "html-tstring"
+version = "0.1.0"
+description = "HTML renderer for PEP 750 template strings"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Koudai Aono", email = "koxudaxi@gmail.com" }]
+maintainers = [{ name = "Koudai Aono", email = "koxudaxi@gmail.com" }]
+requires-python = ">=3.14"
+dependencies = ["tstring-html-bindings>=0.1.0"]
+keywords = ["html", "pep750", "t-strings", "template-strings", "thtml"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/koxudaxi/tstring-html"
+Repository = "https://github.com/koxudaxi/tstring-html"
+Documentation = "https://github.com/koxudaxi/tstring-html/blob/main/html-tstring/README.md"
+Changelog = "https://github.com/koxudaxi/tstring-html/blob/main/CHANGELOG.md"
+Issues = "https://github.com/koxudaxi/tstring-html/issues"
+
+[build-system]
+requires = ["uv_build>=0.10.9,<0.11.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = ["pytest>=8.4.0", "ruff>=0.11.0", "ty>=0.0.23"]
+
+[tool.uv.sources]
+tstring-html-bindings = { workspace = true }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ty.environment]
+extra-paths = [
+    "../rust/tstring-html-bindings/python",
+    "../thtml-tstring/src",
+    "../examples",
+]

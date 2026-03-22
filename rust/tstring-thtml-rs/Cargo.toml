@@ -1,0 +1,13 @@
+[package]
+name = "tstring-thtml"
+description = "T-HTML parser-first renderer for PEP 750 template strings"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+tstring-html = { version = "0.1.0", path = "../tstring-html-rs" }
+tstring-syntax.workspace = true

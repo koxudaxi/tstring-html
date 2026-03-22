@@ -1,0 +1,24 @@
+default_install_hook_types:
+  - pre-commit
+
+repos:
+  - repo: local
+    hooks:
+      - id: examples-ruff
+        name: examples ruff
+        entry: bash scripts/prek_examples_checks.sh
+        language: system
+        pass_filenames: false
+        files: ^examples/.*\.py$
+      - id: html-backend-checks
+        name: html-tstring checks
+        entry: bash scripts/prek_backend_checks.sh html-tstring html_page.py html_account_settings.py html_search_results.py
+        language: system
+        pass_filenames: false
+        files: ^(html-tstring/|examples/html_page\.py|examples/html_account_settings\.py|examples/html_search_results\.py)
+      - id: thtml-backend-checks
+        name: thtml-tstring checks
+        entry: bash scripts/prek_backend_checks.sh thtml-tstring thtml_components.py thtml_dashboard.py
+        language: system
+        pass_filenames: false
+        files: ^(thtml-tstring/|examples/thtml_components\.py|examples/thtml_dashboard\.py)
