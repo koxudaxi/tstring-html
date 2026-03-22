@@ -392,6 +392,12 @@ from html_tstring import format_template
 name = "world"
 format_template(t"<div>{name}</div>")
 # '<div>{name}</div>'
+
+format_template(
+    t'<div data-a="12345" data-b="67890"></div>',
+    line_length=20,
+)
+# '<div\n  data-a="12345"\n  data-b="67890"\n></div>'
 ```
 
 ## Raw-text elements
@@ -622,6 +628,7 @@ from thtml_tstring import check_template, format_template, compile_template
 
 check_template(t"<Button />")   # validate T-HTML syntax
 format_template(t"<Button />")  # canonical formatting
+format_template(t"<Panel a='1' b='2'></Panel>", line_length=20)
 ```
 
 ## See also
@@ -887,7 +894,7 @@ render_html(template | renderable) -> str
 render_fragment(template | renderable) -> str
 html(template) -> Renderable          # deferred
 check_template(template) -> None
-format_template(template) -> str
+format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledHtmlTemplate
 
 # thtml-tstring
@@ -895,7 +902,7 @@ thtml(template, *, globals=None, locals=None) -> Renderable  # deferred
 html(template, *, globals=None, locals=None) -> str           # eager
 render_html(template, *, globals=None, locals=None) -> str    # eager
 check_template(template) -> None
-format_template(template) -> str
+format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledThtmlTemplate
 ```
 
@@ -1176,8 +1183,10 @@ Reconstruct the template source with canonical formatting.
 ```python
 from html_tstring import format_template
 
-def format_template(template: Template) -> str: ...
+def format_template(template: Template, *, line_length: int = 80) -> str: ...
 ```
+
+`line_length` only affects formatting. The Python API does not read project config.
 
 ### `compile_template`
 
@@ -1259,8 +1268,10 @@ Reconstruct T-HTML template source with canonical formatting.
 ```python
 from thtml_tstring import format_template
 
-def format_template(template: Template) -> str: ...
+def format_template(template: Template, *, line_length: int = 80) -> str: ...
 ```
+
+`line_length` only affects formatting. The Python API does not read project config.
 
 ### `compile_template`
 
