@@ -59,9 +59,34 @@ The `@component` decorator wraps `Template` return values into `Renderable` auto
 
 - [Installation](getting-started/installation.md)
 - [Quick Start](getting-started/quick-start.md)
+- [HTML usage](usage/html.md)
+- [T-HTML components](usage/thtml.md)
 - [Editor Integration (t-linter)](usage/editor-integration.md)
+- [API Reference](reference/api.md)
 - [Spec Conformance Status](reference/spec-conformance-status.md)
 - [Architecture](architecture.md)
+
+## Practical examples
+
+The repository ships with typed examples that show realistic usage patterns:
+
+- [HTML account settings](/Users/koudai/work/tstring-html/examples/html_account_settings.py)
+- [HTML search results](/Users/koudai/work/tstring-html/examples/html_search_results.py)
+- [T-HTML dashboard](/Users/koudai/work/tstring-html/examples/thtml_dashboard.py)
+- [Basic HTML page](/Users/koudai/work/tstring-html/examples/html_page.py)
+- [Basic T-HTML components](/Users/koudai/work/tstring-html/examples/thtml_components.py)
+
+## Coverage snapshot
+
+The current repo-local v1 conformance matrix includes:
+
+- HTML `default`: 34 cases
+- T-HTML `default`: 47 cases
+
+That matrix currently covers:
+
+- HTML escaping, `RawHtml`, `Renderable`, spread/class semantics, formatter raw-source fidelity, and seam-level semantic spans
+- T-HTML component resolution, captured scope, explicit scope, `Renderable` composition, auto-wrap behavior, compiled-template scope behavior, and runtime-without-bindings boundaries
 
 ---
 
