@@ -66,6 +66,8 @@ def test_parse_semantic_and_runtime_error_shapes() -> None:
     else:
         raise AssertionError(f"expected raw-text rejection, got {check!r}")
 
+    assert render_html(t"<title>{script}</title>") == "<title>alert('x')</title>"
+
     try:
         render_html(t"<Button />")
     except TemplateRuntimeError:

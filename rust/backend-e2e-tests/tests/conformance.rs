@@ -358,14 +358,19 @@ fn html_manifest_cases_match_rust_backend() {
                 let err = backend_html::check_template(&input).unwrap_err();
                 assert!(err.message.contains("<style>"));
             }
-            "raw-text-title-rejected" => {
+            "raw-text-title-escaped" => {
                 let input = TemplateInput::from_segments(vec![
                     TemplateSegment::StaticText("<title>".into()),
                     interpolation(0, "title", "{title}"),
                     TemplateSegment::StaticText("</title>".into()),
                 ]);
-                let err = backend_html::check_template(&input).unwrap_err();
-                assert!(err.message.contains("<title>"));
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let rendered = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![backend_html::RuntimeValue::RawHtml("<safe>".into())]),
+                )
+                .unwrap();
+                assert_eq!(rendered, case.expected.as_deref().unwrap());
             }
             "raw-text-textarea-rejected" => {
                 let input = TemplateInput::from_segments(vec![
@@ -563,14 +568,19 @@ fn thtml_manifest_cases_match_rust_seam() {
                 let err = backend_thtml::check_template(&input).unwrap_err();
                 assert!(err.message.contains("<style>"));
             }
-            "raw-text-title-rejected" => {
+            "raw-text-title-escaped" => {
                 let input = TemplateInput::from_segments(vec![
                     TemplateSegment::StaticText("<title>".into()),
                     interpolation(0, "title", "{title}"),
                     TemplateSegment::StaticText("</title>".into()),
                 ]);
-                let err = backend_thtml::check_template(&input).unwrap_err();
-                assert!(err.message.contains("<title>"));
+                let compiled = backend_thtml::compile_template(&input).unwrap();
+                let rendered = backend_thtml::render_html(
+                    &compiled,
+                    &runtime(vec![backend_html::RuntimeValue::RawHtml("<safe>".into())]),
+                )
+                .unwrap();
+                assert_eq!(rendered, case.expected.as_deref().unwrap());
             }
             "raw-text-textarea-rejected" => {
                 let input = TemplateInput::from_segments(vec![

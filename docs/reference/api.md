@@ -282,7 +282,7 @@ TemplateError
 | Exception | When |
 |-----------|------|
 | `TemplateParseError` | Template HTML is syntactically invalid (unclosed tag, mismatched closing tag) |
-| `TemplateSemanticError` | Valid syntax but invalid usage (component in HTML backend, raw-text interpolation) |
+| `TemplateSemanticError` | Valid syntax but invalid usage (component in HTML backend, disallowed raw-text interpolation) |
 | `TemplateRuntimeError` | Runtime failure in the T-HTML bindings layer (unknown component, non-callable component, scope capture failure) |
 
 HTML render-time contract violations such as invalid spread types or unsupported `class` values are

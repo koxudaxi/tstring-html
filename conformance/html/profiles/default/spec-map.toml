@@ -166,12 +166,12 @@ execution_layer = "both"
 note = "Interpolations in <style> are rejected."
 
 [[cases]]
-case_id = "raw-text-title-rejected"
+case_id = "raw-text-title-escaped"
 spec_ref = "v1.html.raw-text-title"
-operation = "check_template"
-expected_error = "TemplateSemanticError"
+operation = "render_html"
+expected = "<title>&lt;safe&gt;</title>"
 execution_layer = "both"
-note = "Interpolations in <title> are rejected."
+note = "Interpolations in <title> are allowed, but values are escaped as text."
 
 [[cases]]
 case_id = "raw-text-textarea-rejected"

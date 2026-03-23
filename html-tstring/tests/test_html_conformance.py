@@ -107,6 +107,9 @@ def _render_case(case_id: str) -> str:
             return render_fragment(t"<p>{name}</p>")
         case "comment-and-doctype":
             return render_html(t"<!DOCTYPE html><!--x--><div>ok</div>")
+        case "raw-text-title-escaped":
+            title = RawHtml("<safe>")
+            return render_html(t"<title>{title}</title>")
         case "format-roundtrip":
             name = "world"
             return format_template(t"<div>{name}</div>")
@@ -130,9 +133,6 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "raw-text-style-rejected":
                 style = "body { color: red; }"
                 check_template(t"<style>{style}</style>")
-            case "raw-text-title-rejected":
-                title = "Hello"
-                check_template(t"<title>{title}</title>")
             case "raw-text-textarea-rejected":
                 value = "user input"
                 check_template(t"<textarea>{value}</textarea>")

@@ -397,6 +397,9 @@ def _render_case(case_id: str) -> str:
         case "format-roundtrip":
             label = "Save"
             return format_template(t"<Button>{label}</Button>")
+        case "raw-text-title-escaped":
+            title = RawHtml("<safe>")
+            return render_html(t"<title>{title}</title>")
         case _:
             raise AssertionError(f"Unhandled T-HTML render case: {case_id}")
 
@@ -425,9 +428,6 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "raw-text-style-rejected":
                 style = "body { color: red; }"
                 check_template(t"<style>{style}</style>")
-            case "raw-text-title-rejected":
-                title = "Hello"
-                check_template(t"<title>{title}</title>")
             case "raw-text-textarea-rejected":
                 value = "user input"
                 check_template(t"<textarea>{value}</textarea>")

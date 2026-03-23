@@ -39,12 +39,22 @@ try:
 except TemplateSemanticError as e:
     print(e)  # Component tag <Button> is only valid in the T-HTML backend.
 
-# Interpolation inside raw-text elements is rejected
+# Interpolation inside most raw-text elements is rejected
 script = "alert('x')"
 try:
     check_template(t"<script>{script}</script>")
 except TemplateSemanticError as e:
     print(e)  # Interpolations are not allowed inside <script>.
+```
+
+`<title>` is allowed, but interpolation still renders as escaped text:
+
+```python
+from html_tstring import RawHtml, render_html
+
+title = RawHtml("<b>safe</b>")
+print(render_html(t"<title>{title}</title>"))
+# <title>&lt;b&gt;safe&lt;/b&gt;</title>
 ```
 
 ## Runtime errors

@@ -92,26 +92,7 @@ fn validate_thtml_node(node: &Node) -> BackendResult<()> {
         }
         Node::RawTextElement(element) => {
             validate_attributes(&element.attributes)?;
-            for child in &element.children {
-                match child {
-                    Node::Interpolation(interpolation) => {
-                        return Err(semantic_error(
-                            "html.semantic.raw_text_interpolation",
-                            format!("Interpolations are not allowed inside <{}>.", element.name),
-                            interpolation.span.clone(),
-                        ));
-                    }
-                    Node::Text(_) => {}
-                    _ => {
-                        return Err(semantic_error(
-                            "html.semantic.raw_text_content",
-                            format!("Only text is allowed inside <{}>.", element.name),
-                            element.span.clone(),
-                        ));
-                    }
-                }
-            }
-            Ok(())
+            validate_raw_text_children(element)
         }
         Node::ComponentTag(component) => {
             validate_attributes(&component.attributes)?;
@@ -128,6 +109,38 @@ fn validate_thtml_node(node: &Node) -> BackendResult<()> {
         }
         _ => Ok(()),
     }
+}
+
+fn validate_raw_text_children(element: &tstring_html::RawTextElementNode) -> BackendResult<()> {
+    for child in &element.children {
+        match child {
+            Node::Text(_) => {}
+            Node::Interpolation(_) if element.name == "title" => {}
+            Node::Interpolation(interpolation) => {
+                return Err(semantic_error(
+                    "html.semantic.raw_text_interpolation",
+                    format!("Interpolations are not allowed inside <{}>.", element.name),
+                    interpolation.span.clone(),
+                ));
+            }
+            _ => {
+                let message = if element.name == "title" {
+                    format!(
+                        "Only text and interpolations are allowed inside <{}>.",
+                        element.name
+                    )
+                } else {
+                    format!("Only text is allowed inside <{}>.", element.name)
+                };
+                return Err(semantic_error(
+                    "html.semantic.raw_text_content",
+                    message,
+                    element.span.clone(),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_attributes(attributes: &[AttributeLike]) -> BackendResult<()> {
@@ -203,6 +216,26 @@ mod tests {
         assert_eq!(
             err.message,
             "Component rendering requires the bindings layer runtime context."
+        );
+    }
+
+    #[test]
+    fn thtml_accepts_title_interpolation() {
+        let input = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<title>".to_string()),
+            TemplateSegment::Interpolation(tstring_syntax::TemplateInterpolation {
+                expression: "title".to_string(),
+                conversion: None,
+                format_spec: String::new(),
+                interpolation_index: 0,
+                raw_source: Some("{title}".to_string()),
+            }),
+            TemplateSegment::StaticText("</title>".to_string()),
+        ]);
+        check_template(&input).expect("title interpolation should be allowed");
+        assert_eq!(
+            format_template(&input).expect("format title"),
+            "<title>{title}</title>"
         );
     }
 }

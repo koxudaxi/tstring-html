@@ -1,12 +1,12 @@
 [project]
 name = "tstring-html-workspace"
-version = "0.1.0"
+version = "0.1.5"
 description = "Workspace for parser-first HTML and T-HTML PEP 750 backends"
 readme = "README.md"
 requires-python = ">=3.14"
 dependencies = [
-    "html-tstring>=0.1.0",
-    "thtml-tstring>=0.1.0",
+    "html-tstring>=0.1.5",
+    "thtml-tstring>=0.1.5",
 ]
 
 [build-system]
@@ -16,11 +16,11 @@ build-backend = "uv_build"
 [dependency-groups]
 dev = [
     "coverage[toml]>=7.8.0",
-    "html-tstring>=0.1.0",
+    "html-tstring>=0.1.5",
     "maturin>=1.8.0",
     "pytest>=8.4.0",
     "ruff>=0.11.0",
-    "thtml-tstring>=0.1.0",
+    "thtml-tstring>=0.1.5",
     "ty>=0.0.23",
     "twine>=6.1.0",
 ]

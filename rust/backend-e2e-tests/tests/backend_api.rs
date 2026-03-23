@@ -31,6 +31,31 @@ fn html_backend_public_api_smoke_test() {
 }
 
 #[test]
+fn html_backend_title_interpolation_renders_escaped_text() {
+    let template = TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText("<title>".to_owned()),
+        interpolation(0, "title", "{title}"),
+        TemplateSegment::StaticText("</title>".to_owned()),
+    ]);
+
+    backend_html::check_template(&template).expect("title should validate");
+    assert_eq!(
+        backend_html::format_template(&template).expect("expected html format success"),
+        "<title>{title}</title>"
+    );
+
+    let compiled = backend_html::compile_template(&template).expect("compile title");
+    let rendered = backend_html::render_html(
+        &compiled,
+        &backend_html::RuntimeContext {
+            values: vec![backend_html::RuntimeValue::RawHtml("<safe>".to_owned())],
+        },
+    )
+    .expect("render title");
+    assert_eq!(rendered, "<title>&lt;safe&gt;</title>");
+}
+
+#[test]
 fn html_backend_format_preserves_conversion_and_format_spec() {
     let template = TemplateInput::from_segments(vec![
         TemplateSegment::StaticText("<div data-repr=\"".to_owned()),
@@ -71,6 +96,31 @@ fn thtml_backend_public_api_smoke_test() {
         backend_thtml::format_template(&template).expect("expected thtml format success"),
         "<Button kind=\"primary\">{label}</Button>"
     );
+}
+
+#[test]
+fn thtml_backend_title_interpolation_renders_escaped_text() {
+    let template = TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText("<title>".to_owned()),
+        interpolation(0, "title", "{title}"),
+        TemplateSegment::StaticText("</title>".to_owned()),
+    ]);
+
+    backend_thtml::check_template(&template).expect("title should validate");
+    assert_eq!(
+        backend_thtml::format_template(&template).expect("expected thtml format success"),
+        "<title>{title}</title>"
+    );
+
+    let compiled = backend_thtml::compile_template(&template).expect("compile title");
+    let rendered = backend_thtml::render_html(
+        &compiled,
+        &backend_html::RuntimeContext {
+            values: vec![backend_html::RuntimeValue::RawHtml("<safe>".to_owned())],
+        },
+    )
+    .expect("render title");
+    assert_eq!(rendered, "<title>&lt;safe&gt;</title>");
 }
 
 #[test]

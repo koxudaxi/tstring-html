@@ -197,7 +197,7 @@ wheels = [
 
 [[package]]
 name = "html-tstring"
-version = "0.1.0"
+version = "0.1.5"
 source = { editable = "html-tstring" }
 dependencies = [
     { name = "tstring-html-bindings" },
@@ -606,7 +606,7 @@ wheels = [
 
 [[package]]
 name = "thtml-tstring"
-version = "0.1.0"
+version = "0.1.5"
 source = { editable = "thtml-tstring" }
 dependencies = [
     { name = "tstring-html-bindings" },
@@ -631,12 +631,12 @@ dev = [
 
 [[package]]
 name = "tstring-html-bindings"
-version = "0.1.0"
+version = "0.1.5"
 source = { editable = "rust/tstring-html-bindings" }
 
 [[package]]
 name = "tstring-html-workspace"
-version = "0.1.0"
+version = "0.1.5"
 source = { virtual = "." }
 dependencies = [
     { name = "html-tstring" },
