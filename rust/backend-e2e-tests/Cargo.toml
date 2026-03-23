@@ -12,6 +12,6 @@ publish = false
 [dev-dependencies]
 serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
-tstring-html = { version = "0.1.0", path = "../tstring-html-rs" }
+tstring-html = { version = "0.1.5", path = "../tstring-html-rs" }
 tstring-syntax.workspace = true
-tstring-thtml = { version = "0.1.0", path = "../tstring-thtml-rs" }
+tstring-thtml = { version = "0.1.5", path = "../tstring-thtml-rs" }

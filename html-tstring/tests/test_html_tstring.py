@@ -184,7 +184,6 @@ def test_render_html_rejects_raw_text_interpolation() -> None:
     for template in [
         t"<script>{script}</script>",
         t"<style>{script}</style>",
-        t"<title>{script}</title>",
         t"<textarea>{textarea}</textarea>",
     ]:
         try:
@@ -194,6 +193,11 @@ def test_render_html_rejects_raw_text_interpolation() -> None:
             assert "interpolation" in message or "raw text" in message
         else:
             raise AssertionError("expected raw-text interpolation rejection")
+
+
+def test_render_html_allows_title_interpolation_and_escapes_text() -> None:
+    title = RawHtml("<safe>")
+    assert render_html(t"<title>{title}</title>") == "<title>&lt;safe&gt;</title>"
 
 
 def test_check_template_rejects_raw_text_interpolation() -> None:
@@ -212,7 +216,6 @@ def test_raw_html_does_not_bypass_raw_text_rejection() -> None:
     for template in [
         t"<script>{script}</script>",
         t"<style>{script}</style>",
-        t"<title>{script}</title>",
         t"<textarea>{script}</textarea>",
     ]:
         try:
@@ -221,6 +224,8 @@ def test_raw_html_does_not_bypass_raw_text_rejection() -> None:
             assert "interpolation" in str(exc).lower() or "raw text" in str(exc).lower()
         else:
             raise AssertionError("expected raw-text interpolation rejection")
+
+    assert render_html(t"<title>{script}</title>") == "<title>alert('x')</title>"
 
 
 def test_render_html_embeds_thtml_renderable_as_safe_child_html() -> None:

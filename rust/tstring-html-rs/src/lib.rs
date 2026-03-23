@@ -829,6 +829,10 @@ pub fn is_raw_text_tag(name: &str) -> bool {
     matches!(name, "script" | "style" | "title" | "textarea")
 }
 
+fn raw_text_allows_interpolation(name: &str) -> bool {
+    name == "title"
+}
+
 fn validate_html_document(document: &Document) -> BackendResult<()> {
     for child in &document.children {
         validate_html_node(child)?;
@@ -913,30 +917,43 @@ fn validate_html_node(node: &Node) -> BackendResult<()> {
         }
         Node::RawTextElement(element) => {
             validate_attributes(&element.attributes)?;
-            for child in &element.children {
-                match child {
-                    Node::Interpolation(interpolation) => {
-                        return Err(semantic_error(
-                            "html.semantic.raw_text_interpolation",
-                            format!("Interpolations are not allowed inside <{}>.", element.name),
-                            interpolation.span.clone(),
-                        ));
-                    }
-                    Node::Text(_) => {}
-                    _ => {
-                        return Err(semantic_error(
-                            "html.semantic.raw_text_content",
-                            format!("Only text is allowed inside <{}>.", element.name),
-                            element.span.clone(),
-                        ));
-                    }
-                }
-            }
-            Ok(())
+            validate_raw_text_children(element)
         }
         Node::Fragment(fragment) => validate_children(&fragment.children),
         _ => Ok(()),
     }
+}
+
+fn validate_raw_text_children(element: &RawTextElementNode) -> BackendResult<()> {
+    for child in &element.children {
+        match child {
+            Node::Text(_) => {}
+            Node::Interpolation(_) if raw_text_allows_interpolation(&element.name) => {}
+            Node::Interpolation(interpolation) => {
+                return Err(semantic_error(
+                    "html.semantic.raw_text_interpolation",
+                    format!("Interpolations are not allowed inside <{}>.", element.name),
+                    interpolation.span.clone(),
+                ));
+            }
+            _ => {
+                let message = if raw_text_allows_interpolation(&element.name) {
+                    format!(
+                        "Only text and interpolations are allowed inside <{}>.",
+                        element.name
+                    )
+                } else {
+                    format!("Only text is allowed inside <{}>.", element.name)
+                };
+                return Err(semantic_error(
+                    "html.semantic.raw_text_content",
+                    message,
+                    element.span.clone(),
+                ));
+            }
+        }
+    }
+    Ok(())
 }
 
 fn validate_children(children: &[Node]) -> BackendResult<()> {
@@ -1030,28 +1047,7 @@ fn render_node(node: &Node, context: &RuntimeContext, out: &mut String) -> Backe
             context,
             out,
         )?,
-        Node::RawTextElement(element) => {
-            out.push('<');
-            out.push_str(&element.name);
-            let normalized = normalize_attributes(&element.attributes, context)?;
-            write_attributes(&normalized, out);
-            out.push('>');
-            for child in &element.children {
-                match child {
-                    Node::Text(text) => out.push_str(&text.value),
-                    _ => {
-                        return Err(semantic_error(
-                            "html.semantic.raw_text_render",
-                            format!("Only text can be rendered inside <{}>.", element.name),
-                            element.span.clone(),
-                        ));
-                    }
-                }
-            }
-            out.push_str("</");
-            out.push_str(&element.name);
-            out.push('>');
-        }
+        Node::RawTextElement(element) => render_raw_text_element(element, context, out)?,
         Node::ComponentTag(component) => {
             return Err(semantic_error(
                 "html.semantic.component_render",
@@ -1063,6 +1059,45 @@ fn render_node(node: &Node, context: &RuntimeContext, out: &mut String) -> Backe
             ));
         }
     }
+    Ok(())
+}
+
+fn render_raw_text_element(
+    element: &RawTextElementNode,
+    context: &RuntimeContext,
+    out: &mut String,
+) -> BackendResult<()> {
+    out.push('<');
+    out.push_str(&element.name);
+    let normalized = normalize_attributes(&element.attributes, context)?;
+    write_attributes(&normalized, out);
+    out.push('>');
+    for child in &element.children {
+        match child {
+            Node::Text(text) => out.push_str(&text.value),
+            Node::Interpolation(interpolation) if raw_text_allows_interpolation(&element.name) => {
+                render_escaped_text_value(value_for_interpolation(context, interpolation)?, out)?;
+            }
+            _ => {
+                let message = if raw_text_allows_interpolation(&element.name) {
+                    format!(
+                        "Only text and interpolations can be rendered inside <{}>.",
+                        element.name
+                    )
+                } else {
+                    format!("Only text can be rendered inside <{}>.", element.name)
+                };
+                return Err(semantic_error(
+                    "html.semantic.raw_text_render",
+                    message,
+                    element.span.clone(),
+                ));
+            }
+        }
+    }
+    out.push_str("</");
+    out.push_str(&element.name);
+    out.push('>');
     Ok(())
 }
 
@@ -1254,6 +1289,30 @@ pub fn render_child_value(value: &RuntimeValue, out: &mut String) -> BackendResu
         RuntimeValue::Fragment(values) | RuntimeValue::Sequence(values) => {
             for value in values {
                 render_child_value(value, out)?;
+            }
+        }
+        RuntimeValue::Attributes(_) => {
+            return Err(runtime_error(
+                "html.runtime.child_type",
+                "Mapping-like values cannot be rendered as children.",
+                None,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn render_escaped_text_value(value: &RuntimeValue, out: &mut String) -> BackendResult<()> {
+    match value {
+        RuntimeValue::Null => {}
+        RuntimeValue::Bool(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::Int(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::Float(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::String(value) => out.push_str(&escape_html_text(value)),
+        RuntimeValue::RawHtml(value) => out.push_str(&escape_html_text(value)),
+        RuntimeValue::Fragment(values) | RuntimeValue::Sequence(values) => {
+            for value in values {
+                render_escaped_text_value(value, out)?;
             }
         }
         RuntimeValue::Attributes(_) => {
@@ -1663,5 +1722,35 @@ mod tests {
         ]))
         .expect("normalize class");
         assert_eq!(values, vec!["foo", "bar", "baz"]);
+    }
+
+    #[test]
+    fn title_interpolation_is_allowed_and_escaped_on_render() {
+        let input = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<title>".to_string()),
+            interpolation(0, "title", Some("{title}")),
+            TemplateSegment::StaticText("</title>".to_string()),
+        ]);
+        let compiled = compile_template(&input).expect("compile title template");
+        let rendered = render_html(
+            &compiled,
+            &RuntimeContext {
+                values: vec![RuntimeValue::RawHtml("<safe>".to_string())],
+            },
+        )
+        .expect("render title");
+        assert_eq!(rendered, "<title>&lt;safe&gt;</title>");
+    }
+
+    #[test]
+    fn script_interpolation_is_still_rejected() {
+        let input = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<script>".to_string()),
+            interpolation(0, "script", Some("{script}")),
+            TemplateSegment::StaticText("</script>".to_string()),
+        ]);
+        let err = check_template(&input).expect_err("script must still fail");
+        assert_eq!(err.kind, ErrorKind::Semantic);
+        assert!(err.message.contains("<script>"));
     }
 }

@@ -32,7 +32,7 @@ render_html(t"<span>{icon}</span>")
 # <span><svg><circle r="5"/></svg></span>
 ```
 
-`RawHtml` works in child and fragment positions. In attributes and spread values it is treated as a plain string and escaped normally. Interpolation inside raw-text elements (`<script>`, `<style>`, etc.) is rejected.
+`RawHtml` works in child and fragment positions. In attributes and spread values it is treated as a plain string and escaped normally. Interpolation inside `<script>`, `<style>`, and `<textarea>` is rejected. `<title>{...}</title>` is allowed, but interpolated values are still escaped as text.
 
 ## Attributes
 
@@ -155,7 +155,7 @@ format_template(
 
 ## Raw-text elements
 
-Interpolation inside `<script>`, `<style>`, `<title>`, and `<textarea>` is rejected:
+Interpolation inside `<script>`, `<style>`, and `<textarea>` is rejected:
 
 ```python
 from html_tstring import check_template, TemplateSemanticError
@@ -163,4 +163,14 @@ from html_tstring import check_template, TemplateSemanticError
 script = "alert('x')"
 check_template(t"<script>{script}</script>")
 # raises TemplateSemanticError
+```
+
+`<title>` is the one exception. It accepts interpolations, but they are rendered as escaped text rather than raw HTML:
+
+```python
+from html_tstring import RawHtml, render_html
+
+title = RawHtml("<b>safe</b>")
+render_html(t"<title>{title}</title>")
+# <title>&lt;b&gt;safe&lt;/b&gt;</title>
 ```

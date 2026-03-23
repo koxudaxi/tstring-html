@@ -104,7 +104,7 @@ enum ErrorKind { Parse, Semantic, Unrepresentable }
 | --- | --- |
 | Lexer/Parser | Token-based streaming parser, classifies tags as HTML or component |
 | AST | Document, Element, ComponentTag, Attribute, SpreadAttribute, RawTextElement, etc. |
-| Validation | Rejects component tags, unquoted dynamic attrs, raw-text interpolation |
+| Validation | Rejects component tags, unquoted dynamic attrs, and raw-text interpolation except for `<title>` |
 | Formatter | Reconstructs source from AST using `raw_source` |
 | Renderer | HTML escaping, class normalization, spread merge, boolean attrs |
 | Escaping | `&amp;` `&lt;` `&gt;` `&quot;` |
@@ -113,7 +113,7 @@ enum ErrorKind { Parse, Semantic, Unrepresentable }
 
 | Part | What it does |
 | --- | --- |
-| Validation | Allows component tags, validates attributes and raw-text rules |
+| Validation | Allows component tags, validates attributes, and applies the same raw-text rules as HTML |
 | Formatting | T-HTML formatter with component syntax |
 | Compile | `CompiledThtmlTemplate` with the parsed document |
 
@@ -234,7 +234,7 @@ Notable versions: pyo3 0.27.1, tstring-syntax 0.2.1, Rust edition 2024.
 | Attribute values | `&` `<` `>` `"` (always double-quoted) |
 | `RawHtml` | No escaping (external trusted content) |
 | `Renderable` | No escaping (renderer-built safe HTML) |
-| Raw-text elements | Interpolation rejected in v1 |
+| Raw-text elements | `<title>` interpolation allowed as escaped text; `<script>`, `<style>`, and `<textarea>` still reject interpolation |
 
 ## Testing
 

@@ -607,6 +607,15 @@ fn render_thtml_node(
             for child in &element.children {
                 match child {
                     Node::Text(text) => out.push_str(&text.value),
+                    Node::Interpolation(interpolation) if element.name == "title" => {
+                        let Some(value) = context.values.get(interpolation.interpolation_index)
+                        else {
+                            return Err(runtime_error_to_py(
+                                "Missing runtime value for interpolation.",
+                            ));
+                        };
+                        render_escaped_text_value(value, out).map_err(backend_error_to_py)?;
+                    }
                     _ => {
                         return Err(runtime_error_to_py(
                             "Invalid raw-text content in T-HTML render path.",
@@ -644,6 +653,43 @@ fn render_thtml_node(
         }
     }
     Ok(())
+}
+
+fn render_escaped_text_value(value: &RuntimeValue, out: &mut String) -> Result<(), BackendError> {
+    match value {
+        RuntimeValue::Null => {}
+        RuntimeValue::Bool(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::Int(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::Float(value) => out.push_str(&escape_html_text(&value.to_string())),
+        RuntimeValue::String(value) => out.push_str(&escape_html_text(value)),
+        RuntimeValue::RawHtml(value) => out.push_str(&escape_html_text(value)),
+        RuntimeValue::Fragment(values) | RuntimeValue::Sequence(values) => {
+            for value in values {
+                render_escaped_text_value(value, out)?;
+            }
+        }
+        RuntimeValue::Attributes(_) => {
+            return Err(tstring_html::runtime_error(
+                "html.runtime.child_type",
+                "Mapping-like values cannot be rendered as children.",
+                None,
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn escape_html_text(value: &str) -> String {
+    let mut escaped = String::with_capacity(value.len());
+    for ch in value.chars() {
+        match ch {
+            '&' => escaped.push_str("&amp;"),
+            '<' => escaped.push_str("&lt;"),
+            '>' => escaped.push_str("&gt;"),
+            _ => escaped.push(ch),
+        }
+    }
+    escaped
 }
 
 fn render_attribute_value_for_component(

@@ -1,13 +1,13 @@
 [project]
 name = "html-tstring"
-version = "0.1.0"
+version = "0.1.5"
 description = "HTML renderer for PEP 750 template strings"
 readme = "README.md"
 license = { text = "MIT" }
 authors = [{ name = "Koudai Aono", email = "koxudaxi@gmail.com" }]
 maintainers = [{ name = "Koudai Aono", email = "koxudaxi@gmail.com" }]
 requires-python = ">=3.14"
-dependencies = ["tstring-html-bindings>=0.1.0"]
+dependencies = ["tstring-html-bindings>=0.1.5"]
 keywords = ["html", "pep750", "t-strings", "template-strings", "thtml"]
 classifiers = [
     "Development Status :: 4 - Beta",

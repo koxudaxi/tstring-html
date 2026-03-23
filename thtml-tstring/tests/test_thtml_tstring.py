@@ -469,11 +469,12 @@ def test_parse_semantic_and_format_errors_cover_documented_v1_behavior() -> None
     for template in [
         t"<script>{label}</script>",
         t"<style>{label}</style>",
-        t"<title>{label}</title>",
         t"<textarea>{label}</textarea>",
     ]:
         with pytest.raises(TemplateSemanticError):
             check_template(template)
+
+    assert render_html(t"<title>{label}</title>") == "<title>Save</title>"
 
     with pytest.raises(TemplateSemanticError):
         html_check_template(t"<Button>{label}</Button>")
