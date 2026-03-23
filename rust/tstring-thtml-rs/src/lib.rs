@@ -115,7 +115,7 @@ fn validate_raw_text_children(element: &tstring_html::RawTextElementNode) -> Bac
     for child in &element.children {
         match child {
             Node::Text(_) => {}
-            Node::Interpolation(_) if element.name == "title" => {}
+            Node::Interpolation(_) if element.name.eq_ignore_ascii_case("title") => {}
             Node::Interpolation(interpolation) => {
                 return Err(semantic_error(
                     "html.semantic.raw_text_interpolation",
@@ -124,7 +124,7 @@ fn validate_raw_text_children(element: &tstring_html::RawTextElementNode) -> Bac
                 ));
             }
             _ => {
-                let message = if element.name == "title" {
+                let message = if element.name.eq_ignore_ascii_case("title") {
                     format!(
                         "Only text and interpolations are allowed inside <{}>.",
                         element.name

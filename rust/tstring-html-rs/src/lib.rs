@@ -830,7 +830,7 @@ pub fn is_raw_text_tag(name: &str) -> bool {
 }
 
 fn raw_text_allows_interpolation(name: &str) -> bool {
-    name == "title"
+    name.eq_ignore_ascii_case("title")
 }
 
 fn validate_html_document(document: &Document) -> BackendResult<()> {
