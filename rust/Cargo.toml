@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "backend-e2e-tests",
+    "tstring-format-doc-rs",
     "tstring-html-bindings",
     "tstring-html-rs",
     "tstring-thtml-rs",
@@ -19,3 +20,4 @@ version = "0.1.0"
 [workspace.dependencies]
 pyo3 = "0.27.1"
 tstring-syntax = { version = "=0.2.1" }
+unicode-width = "0.2.2"

@@ -47,7 +47,7 @@ render_html(template | renderable) -> str
 render_fragment(template | renderable) -> str
 html(template) -> Renderable          # deferred
 check_template(template) -> None
-format_template(template) -> str
+format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledHtmlTemplate
 
 # thtml-tstring
@@ -55,7 +55,7 @@ thtml(template, *, globals=None, locals=None) -> Renderable  # deferred
 html(template, *, globals=None, locals=None) -> str           # eager
 render_html(template, *, globals=None, locals=None) -> str    # eager
 check_template(template) -> None
-format_template(template) -> str
+format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledThtmlTemplate
 ```
 

@@ -205,6 +205,19 @@ def test_check_format_compile_and_render_with_explicit_scope() -> None:
     )
 
 
+def test_format_template_accepts_kw_only_line_length() -> None:
+    assert (
+        format_template(
+            t'<Panel data-a="12345" data-b="67890"></Panel>',
+            line_length=20,
+        )
+        == '<Panel\n  data-a="12345"\n  data-b="67890"\n></Panel>'
+    )
+
+    with pytest.raises(TypeError):
+        format_template(t"<Panel></Panel>", 20)  # type: ignore[misc]
+
+
 def test_render_html_with_explicit_scope_and_helpers() -> None:
     label = "Save"
     attrs = spread({"kind": "secondary"})

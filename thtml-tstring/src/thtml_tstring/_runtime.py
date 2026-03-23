@@ -113,9 +113,9 @@ def check_template(template: ThtmlTemplate) -> None:
     _bindings.check_thtml_template(_validate_template(template, "check_template"))
 
 
-def format_template(template: ThtmlTemplate) -> str:
+def format_template(template: ThtmlTemplate, *, line_length: int = 80) -> str:
     checked = _validate_template(template, "format_template")
-    return _bindings.format_thtml_template(checked)
+    return _bindings.format_thtml_template(checked, line_length=line_length)
 
 
 def compile_template(template: ThtmlTemplate) -> CompiledThtmlTemplate:

@@ -5,12 +5,12 @@ use pyo3::types::{PyAny, PyBool, PyDict, PyIterator, PyModule};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tstring_html::{
-    prepare_template as prepare_html_template, rebind_document_interpolations,
-    render_attributes_fragment, render_html as render_html_compiled, AttributeLike,
-    CompiledHtmlTemplate, Document, Node, RuntimeContext, RuntimeValue,
+    AttributeLike, CompiledHtmlTemplate, Document, FormatOptions, Node, RuntimeContext,
+    RuntimeValue, prepare_template as prepare_html_template, rebind_document_interpolations,
+    render_attributes_fragment, render_html as render_html_compiled,
 };
 use tstring_syntax::{BackendError, ErrorKind, TemplateInput, TemplateInterpolation};
-use tstring_thtml::{prepare_template as prepare_thtml_template, CompiledThtmlTemplate};
+use tstring_thtml::{CompiledThtmlTemplate, prepare_template as prepare_thtml_template};
 
 create_exception!(tstring_html_bindings, TemplateError, PyException);
 create_exception!(tstring_html_bindings, TemplateParseError, TemplateError);
@@ -158,12 +158,18 @@ impl RawHtml {
     }
 }
 
-#[pyclass(module = "tstring_html_bindings.tstring_html_bindings", name = "CompiledHtmlTemplate")]
+#[pyclass(
+    module = "tstring_html_bindings.tstring_html_bindings",
+    name = "CompiledHtmlTemplate"
+)]
 struct PyCompiledHtmlTemplate {
     compiled: Arc<CompiledHtmlTemplate>,
 }
 
-#[pyclass(module = "tstring_html_bindings.tstring_html_bindings", name = "CompiledThtmlTemplate")]
+#[pyclass(
+    module = "tstring_html_bindings.tstring_html_bindings",
+    name = "CompiledThtmlTemplate"
+)]
 struct PyCompiledThtmlTemplate {
     compiled: Arc<CompiledThtmlTemplate>,
 }
@@ -177,9 +183,11 @@ impl PyCompiledHtmlTemplate {
 
     fn render_fragment(&self, py: Python<'_>, values: Vec<Py<PyAny>>) -> PyResult<String> {
         let context = runtime_context_from_values(py, &values)?;
-        Ok(tstring_html::render_fragment(self.compiled.as_ref(), &context)
-            .map_err(backend_error_to_py)?
-            .html)
+        Ok(
+            tstring_html::render_fragment(self.compiled.as_ref(), &context)
+                .map_err(backend_error_to_py)?
+                .html,
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -229,7 +237,9 @@ fn template_cache_key(bound: &BoundTemplate, backend: &str) -> CacheKey {
 fn backend_error_to_py(err: BackendError) -> PyErr {
     match err.kind {
         ErrorKind::Parse => TemplateParseError::new_err(err.message),
-        ErrorKind::Semantic | ErrorKind::Unrepresentable => TemplateSemanticError::new_err(err.message),
+        ErrorKind::Semantic | ErrorKind::Unrepresentable => {
+            TemplateSemanticError::new_err(err.message)
+        }
     }
 }
 
@@ -346,9 +356,9 @@ fn runtime_value_from_py(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<R
     if let Ok(marker) = value.getattr("__tstring_renderable__") {
         if marker.is_truthy()? {
             let rendered = value.call_method0("render")?;
-            let rendered: String = rendered.extract().map_err(|_| {
-                runtime_error_to_py("Renderable.render() must return a string.")
-            })?;
+            let rendered: String = rendered
+                .extract()
+                .map_err(|_| runtime_error_to_py("Renderable.render() must return a string."))?;
             return Ok(RuntimeValue::RawHtml(rendered));
         }
     }
@@ -529,13 +539,8 @@ fn render_thtml_node(
         Node::ComponentTag(component) => {
             let callable = resolve_component(py, &component.name, globals, locals)?;
             let kwargs = PyDict::new(py);
-            let children = normalized_children_value(
-                py,
-                &component.children,
-                context,
-                globals,
-                locals,
-            )?;
+            let children =
+                normalized_children_value(py, &component.children, context, globals, locals)?;
             kwargs.set_item("children", children)?;
             for attribute in &component.attributes {
                 match attribute {
@@ -602,7 +607,11 @@ fn render_thtml_node(
             for child in &element.children {
                 match child {
                     Node::Text(text) => out.push_str(&text.value),
-                    _ => return Err(runtime_error_to_py("Invalid raw-text content in T-HTML render path.")),
+                    _ => {
+                        return Err(runtime_error_to_py(
+                            "Invalid raw-text content in T-HTML render path.",
+                        ));
+                    }
                 }
             }
             out.push_str("</");
@@ -612,7 +621,9 @@ fn render_thtml_node(
         Node::Text(text) => out.push_str(&text.value),
         Node::Interpolation(interpolation) => {
             let Some(value) = context.values.get(interpolation.interpolation_index) else {
-                return Err(runtime_error_to_py("Missing runtime value for interpolation."));
+                return Err(runtime_error_to_py(
+                    "Missing runtime value for interpolation.",
+                ));
             };
             tstring_html::render_child_value(value, out).map_err(backend_error_to_py)?;
         }
@@ -646,7 +657,9 @@ fn render_attribute_value_for_component(
             tstring_html::ValuePart::Text(text) => rendered.push_str(text),
             tstring_html::ValuePart::Interpolation(interpolation) => {
                 let Some(value) = context.values.get(interpolation.interpolation_index) else {
-                    return Err(runtime_error_to_py("Missing runtime value for component attribute."));
+                    return Err(runtime_error_to_py(
+                        "Missing runtime value for component attribute.",
+                    ));
                 };
                 rendered.push_str(
                     &tstring_html::stringify_runtime_value(value).map_err(backend_error_to_py)?,
@@ -664,7 +677,13 @@ fn python_from_runtime_value(py: Python<'_>, value: &RuntimeValue) -> PyResult<P
         RuntimeValue::Int(value) => Ok((*value).into_pyobject(py)?.unbind().into_any()),
         RuntimeValue::Float(value) => Ok((*value).into_pyobject(py)?.unbind().into_any()),
         RuntimeValue::String(value) => Ok(value.clone().into_pyobject(py)?.unbind().into_any()),
-        RuntimeValue::RawHtml(value) => Ok(Py::new(py, RawHtml { value: value.clone() })?.into_any()),
+        RuntimeValue::RawHtml(value) => Ok(Py::new(
+            py,
+            RawHtml {
+                value: value.clone(),
+            },
+        )?
+        .into_any()),
         RuntimeValue::Fragment(values) => {
             let mut items = Vec::new();
             for value in values {
@@ -730,14 +749,19 @@ fn default_scope_dict<'py>(py: Python<'py>, globals: bool) -> PyResult<Bound<'py
     let frame = sys
         .getattr("_getframe")?
         .call1((1,)) // immediate caller only
-        .map_err(|_| runtime_error_to_py("Caller-frame inspection failed. Pass globals= or locals= explicitly."))?;
+        .map_err(|_| {
+            runtime_error_to_py(
+                "Caller-frame inspection failed. Pass globals= or locals= explicitly.",
+            )
+        })?;
     let dict = if globals {
         frame.getattr("f_globals")?
     } else {
         frame.getattr("f_locals")?
     };
-    dict.cast_into::<PyDict>()
-        .map_err(|_| runtime_error_to_py("Caller-frame inspection failed. Pass globals= or locals= explicitly."))
+    dict.cast_into::<PyDict>().map_err(|_| {
+        runtime_error_to_py("Caller-frame inspection failed. Pass globals= or locals= explicitly.")
+    })
 }
 
 #[pyfunction]
@@ -746,14 +770,22 @@ fn check_html_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult<
     tstring_html::check_template(&bound.input).map_err(backend_error_to_py)
 }
 
-#[pyfunction]
-fn format_html_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult<String> {
+#[pyfunction(signature = (template, *, line_length = 80))]
+fn format_html_template(
+    py: Python<'_>,
+    template: &Bound<'_, PyAny>,
+    line_length: usize,
+) -> PyResult<String> {
     let bound = extract_template(py, template, "format_html_template")?;
-    tstring_html::format_template(&bound.input).map_err(backend_error_to_py)
+    tstring_html::format_template_with_options(&bound.input, &FormatOptions { line_length })
+        .map_err(backend_error_to_py)
 }
 
 #[pyfunction]
-fn compile_html_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult<PyCompiledHtmlTemplate> {
+fn compile_html_template(
+    py: Python<'_>,
+    template: &Bound<'_, PyAny>,
+) -> PyResult<PyCompiledHtmlTemplate> {
     let bound = extract_template(py, template, "compile_html_template")?;
     Ok(PyCompiledHtmlTemplate {
         compiled: compile_cached_html(&bound)?,
@@ -784,14 +816,22 @@ fn check_thtml_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult
     tstring_thtml::check_template(&bound.input).map_err(backend_error_to_py)
 }
 
-#[pyfunction]
-fn format_thtml_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult<String> {
+#[pyfunction(signature = (template, *, line_length = 80))]
+fn format_thtml_template(
+    py: Python<'_>,
+    template: &Bound<'_, PyAny>,
+    line_length: usize,
+) -> PyResult<String> {
     let bound = extract_template(py, template, "format_thtml_template")?;
-    tstring_thtml::format_template(&bound.input).map_err(backend_error_to_py)
+    tstring_thtml::format_template_with_options(&bound.input, &FormatOptions { line_length })
+        .map_err(backend_error_to_py)
 }
 
 #[pyfunction]
-fn compile_thtml_template(py: Python<'_>, template: &Bound<'_, PyAny>) -> PyResult<PyCompiledThtmlTemplate> {
+fn compile_thtml_template(
+    py: Python<'_>,
+    template: &Bound<'_, PyAny>,
+) -> PyResult<PyCompiledThtmlTemplate> {
     let bound = extract_template(py, template, "compile_thtml_template")?;
     Ok(PyCompiledThtmlTemplate {
         compiled: compile_cached_thtml(&bound)?,
@@ -817,8 +857,14 @@ fn tstring_html_bindings(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResu
     module.add("__contract_symbols__", CONTRACT_SYMBOLS)?;
     module.add("TemplateError", py.get_type::<TemplateError>())?;
     module.add("TemplateParseError", py.get_type::<TemplateParseError>())?;
-    module.add("TemplateSemanticError", py.get_type::<TemplateSemanticError>())?;
-    module.add("TemplateRuntimeError", py.get_type::<TemplateRuntimeError>())?;
+    module.add(
+        "TemplateSemanticError",
+        py.get_type::<TemplateSemanticError>(),
+    )?;
+    module.add(
+        "TemplateRuntimeError",
+        py.get_type::<TemplateRuntimeError>(),
+    )?;
     module.add_class::<Fragment>()?;
     module.add_class::<RawHtml>()?;
     module.add_class::<PyCompiledHtmlTemplate>()?;
@@ -842,7 +888,11 @@ mod tests {
     #[test]
     fn parse_cache_reuses_entries() {
         let cache = ParseCache::new(2);
-        let key = ("html".to_string(), "parse_validated".to_string(), vec!["<div>".to_string()]);
+        let key = (
+            "html".to_string(),
+            "parse_validated".to_string(),
+            vec!["<div>".to_string()],
+        );
         let mut builds = 0;
 
         let first = cache
@@ -866,9 +916,21 @@ mod tests {
     #[test]
     fn parse_cache_evicts_lru_entry() {
         let cache = ParseCache::new(2);
-        let key_a = ("html".to_string(), "parse_validated".to_string(), vec!["a".to_string()]);
-        let key_b = ("html".to_string(), "parse_validated".to_string(), vec!["b".to_string()]);
-        let key_c = ("html".to_string(), "parse_validated".to_string(), vec!["c".to_string()]);
+        let key_a = (
+            "html".to_string(),
+            "parse_validated".to_string(),
+            vec!["a".to_string()],
+        );
+        let key_b = (
+            "html".to_string(),
+            "parse_validated".to_string(),
+            vec!["b".to_string()],
+        );
+        let key_c = (
+            "html".to_string(),
+            "parse_validated".to_string(),
+            vec!["c".to_string()],
+        );
 
         cache
             .get_or_try_insert_with(&key_a, || Ok::<_, ()>(1usize))
@@ -889,7 +951,11 @@ mod tests {
     #[test]
     fn parse_cache_does_not_store_failures() {
         let cache = ParseCache::new(2);
-        let key = ("html".to_string(), "parse_validated".to_string(), vec!["a".to_string()]);
+        let key = (
+            "html".to_string(),
+            "parse_validated".to_string(),
+            vec!["a".to_string()],
+        );
         let mut attempts = 0;
 
         let err = cache.get_or_try_insert_with(&key, || {

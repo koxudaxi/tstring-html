@@ -210,6 +210,7 @@ from thtml_tstring import check_template, format_template, compile_template
 
 check_template(t"<Button />")   # validate T-HTML syntax
 format_template(t"<Button />")  # canonical formatting
+format_template(t"<Panel a='1' b='2'></Panel>", line_length=20)
 ```
 
 ## See also

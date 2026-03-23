@@ -1,4 +1,5 @@
 use tstring_html as backend_html;
+use tstring_html::FormatOptions;
 use tstring_syntax::{TemplateInput, TemplateInterpolation, TemplateSegment};
 use tstring_thtml as backend_thtml;
 
@@ -111,7 +112,12 @@ fn html_semantic_errors_report_spans_for_unquoted_dynamic_attrs_and_components()
         .first()
         .expect("expected component diagnostic");
     assert!(first.span.is_some());
-    assert!(component_error.message.to_ascii_lowercase().contains("component"));
+    assert!(
+        component_error
+            .message
+            .to_ascii_lowercase()
+            .contains("component")
+    );
 }
 
 #[test]
@@ -162,7 +168,10 @@ fn html_format_requires_raw_source_on_template_input_seam() {
     ]);
 
     let err = backend_html::format_template(&template).expect_err("format should fail");
-    assert_eq!(err.message, "Formatting requires raw_source for interpolation 'name'.");
+    assert_eq!(
+        err.message,
+        "Formatting requires raw_source for interpolation 'name'."
+    );
 }
 
 #[test]
@@ -188,9 +197,19 @@ fn thtml_backend_rejects_unquoted_dynamic_attrs_and_raw_text_interpolation() {
         interpolation(0, "kind", "{kind}"),
         TemplateSegment::StaticText(" />".to_owned()),
     ]);
-    let attr_err = backend_thtml::check_template(&attr_template).expect_err("attr check should fail");
-    assert_eq!(attr_err.message, "Dynamic attribute value for 'kind' must be quoted.");
-    assert!(attr_err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+    let attr_err =
+        backend_thtml::check_template(&attr_template).expect_err("attr check should fail");
+    assert_eq!(
+        attr_err.message,
+        "Dynamic attribute value for 'kind' must be quoted."
+    );
+    assert!(
+        attr_err
+            .diagnostics
+            .first()
+            .and_then(|d| d.span.as_ref())
+            .is_some()
+    );
 
     let raw_text_template = TemplateInput::from_segments(vec![
         TemplateSegment::StaticText("<script>".to_owned()),
@@ -203,7 +222,13 @@ fn thtml_backend_rejects_unquoted_dynamic_attrs_and_raw_text_interpolation() {
         raw_text_err.message,
         "Interpolations are not allowed inside <script>."
     );
-    assert!(raw_text_err.diagnostics.first().and_then(|d| d.span.as_ref()).is_some());
+    assert!(
+        raw_text_err
+            .diagnostics
+            .first()
+            .and_then(|d| d.span.as_ref())
+            .is_some()
+    );
 }
 
 #[test]
@@ -225,4 +250,121 @@ fn thtml_format_requires_raw_source_on_template_input_seam() {
         err.message,
         "Formatting requires raw_source for interpolation 'label'."
     );
+}
+
+#[test]
+fn html_formatter_normalizes_self_closing_and_attribute_quotes() {
+    let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<div hidden title='say \"hi\"'></div><img src=test /><section />".to_owned(),
+    )]);
+
+    assert_eq!(
+        backend_html::format_template(&template).expect("expected html format success"),
+        "<div hidden title=\"say &quot;hi&quot;\"></div><img src=\"test\" /><section></section>"
+    );
+}
+
+#[test]
+fn thtml_formatter_preserves_component_self_closing_and_source_order() {
+    let template = TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText("<Button kind='primary' ".to_owned()),
+        interpolation(0, "attrs", "{attrs}"),
+        TemplateSegment::StaticText(" disabled />".to_owned()),
+    ]);
+
+    assert_eq!(
+        backend_thtml::format_template(&template).expect("expected thtml format success"),
+        "<Button kind=\"primary\" {attrs} disabled />"
+    );
+}
+
+#[test]
+fn formatter_breaks_pure_element_children_and_keeps_mixed_content_inline() {
+    let pure = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<div><span></span><span></span></div>".to_owned(),
+    )]);
+    assert_eq!(
+        backend_html::format_template_with_options(&pure, &FormatOptions { line_length: 20 })
+            .expect("expected html format success"),
+        "<div>\n  <span></span>\n  <span></span>\n</div>"
+    );
+
+    let mixed = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<div>Hello <span>world</span>!</div>".to_owned(),
+    )]);
+    assert_eq!(
+        backend_html::format_template_with_options(&mixed, &FormatOptions { line_length: 10 })
+            .expect("expected html format success"),
+        "<div>Hello <span>world</span>!</div>"
+    );
+}
+
+#[test]
+fn formatter_preserves_raw_text_and_multiline_interpolations() {
+    let raw_text = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<script>if (a < b) {\n  console.log(a)\n}</script>".to_owned(),
+    )]);
+    assert_eq!(
+        backend_html::format_template(&raw_text).expect("expected html format success"),
+        "<script>if (a < b) {\n  console.log(a)\n}</script>"
+    );
+
+    let interpolation = TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText("<div title=\"".to_owned()),
+        TemplateSegment::Interpolation(TemplateInterpolation {
+            expression: "value".to_owned(),
+            conversion: None,
+            format_spec: String::new(),
+            interpolation_index: 0,
+            raw_source: Some("{\n  value\n}".to_owned()),
+        }),
+        TemplateSegment::StaticText("\"></div>".to_owned()),
+    ]);
+    assert_eq!(
+        backend_html::format_template_with_options(
+            &interpolation,
+            &FormatOptions { line_length: 8 }
+        )
+        .expect("expected html format success"),
+        "<div\n  title=\"{\n  value\n}\"\n></div>"
+    );
+}
+
+#[test]
+fn formatter_is_idempotent() {
+    let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<div data-a='1' data-b='2'><span></span><span></span></div>".to_owned(),
+    )]);
+    let once =
+        backend_html::format_template_with_options(&template, &FormatOptions { line_length: 24 })
+            .expect("expected html format success");
+    let twice = backend_html::format_template_with_options(
+        &TemplateInput::from_segments(vec![TemplateSegment::StaticText(once.clone())]),
+        &FormatOptions { line_length: 24 },
+    )
+    .expect("expected html format success");
+    assert_eq!(once, twice);
+}
+
+#[test]
+fn formatted_attribute_quote_escaping_preserves_render_output() {
+    let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<div title='say \"hi\"'></div>".to_owned(),
+    )]);
+    let formatted = backend_html::format_template(&template).expect("expected html format success");
+
+    let original = backend_html::compile_template(&template).expect("compile original");
+    let reparsed = backend_html::compile_template(&TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText(formatted),
+    ]))
+    .expect("compile formatted");
+
+    let original_rendered =
+        backend_html::render_html(&original, &backend_html::RuntimeContext::default())
+            .expect("render original");
+    let reparsed_rendered =
+        backend_html::render_html(&reparsed, &backend_html::RuntimeContext::default())
+            .expect("render formatted");
+
+    assert_eq!(original_rendered, reparsed_rendered);
 }

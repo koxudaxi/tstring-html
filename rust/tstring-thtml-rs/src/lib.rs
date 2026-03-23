@@ -1,6 +1,7 @@
 use tstring_html::{
-    format_template_syntax, parse_template, runtime_error, AttributeLike, CompiledHtmlTemplate,
-    Document, Node, RuntimeContext, ValuePart, RenderedFragment,
+    AttributeLike, CompiledHtmlTemplate, Document, FormatOptions, Node, RenderedFragment,
+    RuntimeContext, ValuePart, format_document_as_thtml_with_options, format_template_syntax,
+    parse_template, runtime_error,
 };
 use tstring_syntax::{BackendError, BackendResult, SourceSpan, TemplateInput};
 
@@ -14,9 +15,16 @@ pub fn check_template(template: &TemplateInput) -> BackendResult<()> {
 }
 
 pub fn format_template(template: &TemplateInput) -> BackendResult<String> {
+    format_template_with_options(template, &FormatOptions::default())
+}
+
+pub fn format_template_with_options(
+    template: &TemplateInput,
+    options: &FormatOptions,
+) -> BackendResult<String> {
     let document = format_template_syntax(template)?;
     validate_thtml_document(&document)?;
-    Ok(format_document(&document))
+    Ok(format_document_as_thtml_with_options(&document, options))
 }
 
 pub fn compile_template(template: &TemplateInput) -> BackendResult<CompiledThtmlTemplate> {
@@ -172,109 +180,6 @@ fn node_contains_component(node: &Node) -> bool {
     }
 }
 
-fn format_document(document: &Document) -> String {
-    let mut out = String::new();
-    for node in &document.children {
-        format_node(node, &mut out);
-    }
-    out
-}
-
-fn format_node(node: &Node, out: &mut String) {
-    match node {
-        Node::Fragment(fragment) => {
-            for child in &fragment.children {
-                format_node(child, out);
-            }
-        }
-        Node::Element(element) => {
-            format_tag_like(&element.name, &element.attributes, &element.children, element.self_closing, out);
-        }
-        Node::ComponentTag(component) => {
-            format_tag_like(
-                &component.name,
-                &component.attributes,
-                &component.children,
-                component.self_closing,
-                out,
-            );
-        }
-        Node::RawTextElement(element) => {
-            format_tag_like(&element.name, &element.attributes, &element.children, false, out);
-        }
-        Node::Text(text) => out.push_str(&text.value),
-        Node::Interpolation(interpolation) => {
-            if let Some(raw_source) = &interpolation.raw_source {
-                out.push_str(raw_source);
-            }
-        }
-        Node::Comment(comment) => {
-            out.push_str("<!--");
-            out.push_str(&comment.value);
-            out.push_str("-->");
-        }
-        Node::Doctype(doctype) => {
-            out.push_str("<!DOCTYPE ");
-            out.push_str(&doctype.value);
-            out.push('>');
-        }
-    }
-}
-
-fn format_tag_like(
-    name: &str,
-    attributes: &[tstring_html::AttributeLike],
-    children: &[Node],
-    self_closing: bool,
-    out: &mut String,
-) {
-    out.push('<');
-    out.push_str(name);
-    for attribute in attributes {
-        out.push(' ');
-        match attribute {
-            tstring_html::AttributeLike::Attribute(attribute) => {
-                out.push_str(&attribute.name);
-                if let Some(value) = &attribute.value {
-                    out.push('=');
-                    if value.quoted {
-                        out.push('"');
-                    }
-                    for part in &value.parts {
-                        match part {
-                            tstring_html::ValuePart::Text(text) => out.push_str(text),
-                            tstring_html::ValuePart::Interpolation(interpolation) => {
-                                if let Some(raw_source) = &interpolation.raw_source {
-                                    out.push_str(raw_source);
-                                }
-                            }
-                        }
-                    }
-                    if value.quoted {
-                        out.push('"');
-                    }
-                }
-            }
-            tstring_html::AttributeLike::SpreadAttribute(attribute) => {
-                if let Some(raw_source) = &attribute.interpolation.raw_source {
-                    out.push_str(raw_source);
-                }
-            }
-        }
-    }
-    if self_closing {
-        out.push_str(" />");
-        return;
-    }
-    out.push('>');
-    for child in children {
-        format_node(child, out);
-    }
-    out.push_str("</");
-    out.push_str(name);
-    out.push('>');
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -290,10 +195,14 @@ mod tests {
 
     #[test]
     fn thtml_runtime_without_bindings_rejects_components() {
-        let input =
-            TemplateInput::from_segments(vec![TemplateSegment::StaticText("<Button />".to_string())]);
+        let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            "<Button />".to_string(),
+        )]);
         let compiled = compile_template(&input).expect("compile thtml");
         let err = render_html(&compiled, &RuntimeContext::default()).expect_err("must fail");
-        assert_eq!(err.message, "Component rendering requires the bindings layer runtime context.");
+        assert_eq!(
+            err.message,
+            "Component rendering requires the bindings layer runtime context."
+        );
     }
 }
