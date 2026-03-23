@@ -607,7 +607,9 @@ fn render_thtml_node(
             for child in &element.children {
                 match child {
                     Node::Text(text) => out.push_str(&text.value),
-                    Node::Interpolation(interpolation) if element.name == "title" => {
+                    Node::Interpolation(interpolation)
+                        if element.name.eq_ignore_ascii_case("title") =>
+                    {
                         let Some(value) = context.values.get(interpolation.interpolation_index)
                         else {
                             return Err(runtime_error_to_py(
@@ -929,7 +931,9 @@ fn tstring_html_bindings(py: Python<'_>, module: &Bound<'_, PyModule>) -> PyResu
 
 #[cfg(test)]
 mod tests {
-    use super::ParseCache;
+    use super::{ParseCache, render_thtml_node};
+    use pyo3::Python;
+    use tstring_html::{Node, RuntimeContext, RuntimeValue};
 
     #[test]
     fn parse_cache_reuses_entries() {
@@ -1019,5 +1023,31 @@ mod tests {
             .expect("second attempt should succeed");
         assert_eq!(*value, 7);
         assert_eq!(attempts, 2);
+    }
+
+    #[test]
+    fn render_thtml_node_treats_uppercase_title_as_escaped_text() {
+        Python::attach(|py| {
+            let node = Node::RawTextElement(tstring_html::RawTextElementNode {
+                name: "TITLE".to_string(),
+                attributes: Vec::new(),
+                children: vec![Node::Interpolation(tstring_html::InterpolationNode {
+                    interpolation_index: 0,
+                    expression: "title".to_string(),
+                    raw_source: Some("{title}".to_string()),
+                    conversion: None,
+                    format_spec: String::new(),
+                    span: None,
+                })],
+                span: None,
+            });
+            let context = RuntimeContext {
+                values: vec![RuntimeValue::RawHtml("<safe>".to_string())],
+            };
+            let mut out = String::new();
+            render_thtml_node(py, &node, &context, None, None, &mut out)
+                .expect("render uppercase title");
+            assert_eq!(out, "<TITLE>&lt;safe&gt;</TITLE>");
+        });
     }
 }
