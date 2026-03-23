@@ -263,30 +263,21 @@ jobs:
           fi
 
           if [ -n "$FINAL_BC" ]; then
-            printf '%s\n' "$GENERATED_NOTES" > generated_notes.md
-            python3 scripts/compose_release_notes.py \
-              --generated-notes-file generated_notes.md > structured_release_notes.md
-            RELEASE_BODY=$(printf '%s\n\n%s' "$FINAL_BC" "$(cat structured_release_notes.md)")
+            RELEASE_BODY=$(printf '%s\n\n%s' "$FINAL_BC" "$GENERATED_NOTES")
           else
-            printf '%s\n' "$GENERATED_NOTES" > generated_notes.md
-            python3 scripts/compose_release_notes.py \
-              --generated-notes-file generated_notes.md > structured_release_notes.md
-            RELEASE_BODY="$(cat structured_release_notes.md)"
+            RELEASE_BODY="$GENERATED_NOTES"
           fi
 
-          printf '%s\n' "$RELEASE_BODY" > release_notes.md
-          python3 scripts/validate_release_notes.py release_notes.md
-
-          if [ -n "$DRAFT_TAG_RAW" ]; then
-            gh release edit "$DRAFT_TAG_RAW" \
+          if [ -n "$DRAFT_TAG_RAW" ] && [ "$DRAFT_TAG" = "$NEXT_VERSION" ]; then
+            echo "$RELEASE_BODY" | gh release edit "$DRAFT_TAG_RAW" \
               --title "$NEXT_VERSION" \
-              --notes-file release_notes.md
+              --notes-file -
           else
-            if gh release create "$NEXT_VERSION" \
-              --draft \
+            if echo "$RELEASE_BODY" | gh release create "$NEXT_VERSION" \
               --title "$NEXT_VERSION" \
-              --notes-file release_notes.md; then
-              if [ -n "${OLD_DRAFT_TAG:-}" ]; then
+              --notes-file - \
+              --draft; then
+              if [ -n "$OLD_DRAFT_TAG" ]; then
                 gh release delete "$OLD_DRAFT_TAG" --yes 2>/dev/null || true
               fi
             else
