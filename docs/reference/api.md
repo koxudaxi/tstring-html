@@ -113,6 +113,7 @@ def thtml(
     *,
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> Renderable: ...
 ```
 
@@ -121,8 +122,11 @@ def thtml(
 | `template` | `Template` | A PEP 750 `t"..."` literal |
 | `globals` | `dict[str, Any] \| None` | Globals for component resolution. Default: caller's `f_globals` |
 | `locals` | `dict[str, Any] \| None` | Locals for component resolution. Default: caller's `f_locals` |
+| `registry` | `Mapping[str, object] \| None` | Explicit component registry. Recommended for larger projects. |
 
 Scope is captured once at creation time and frozen. Rendering does not re-inspect the caller frame.
+
+`registry` is mutually exclusive with `globals` / `locals`. When provided, it becomes the only component source for that renderable.
 
 ### `html`
 
@@ -136,6 +140,7 @@ def html(
     *,
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> str: ...
 ```
 
@@ -185,6 +190,7 @@ def render(
     values: list[object],
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> str: ...
 ```
 
@@ -204,9 +210,20 @@ def MyComponent(*, children: str, **props: object) -> Template:
 @component(backend="thtml")
 def MyComponent(*, children: str, **props: object) -> Template:
     return t"<div>{children}</div>"
+
+# freeze nested component resolution explicitly
+@component
+def Icon(*, children: str = "") -> Template:
+    return t"<svg aria-hidden='true'></svg>"
+
+@component(registry={"Icon": Icon})
+def ToolbarButton(*, children: str, **props: object) -> Template:
+    return t"<button><Icon />{children}</button>"
 ```
 
 When the decorated function returns a `Template`, the decorator wraps it into a `Renderable`. Other return types (`Renderable`, `RawHtml`, `str`, `Fragment`, `list`, `None`, scalars) pass through unchanged.
+
+`registry=` is only supported for the default T-HTML backend. It freezes nested component resolution for templates returned by that decorated function.
 
 Attribute names are forwarded literally from template syntax. In v1, names like `class`,
 `aria-label`, and `data-id` are not remapped to Python identifiers such as `class_` or

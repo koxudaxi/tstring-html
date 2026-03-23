@@ -24,7 +24,7 @@ valid HTML, and XSS is not possible.
 | Package | What it does |
 |---------|--------------|
 | **html-tstring** | Plain HTML rendering with auto-escaping |
-| **thtml-tstring** | Adds JSX-style component tags on top of html-tstring |
+| **thtml-tstring** | Adds component tags on top of html-tstring |
 
 `tstring-html-bindings` (the native extension) is pulled in automatically.
 
@@ -94,6 +94,9 @@ name starts with an uppercase letter (e.g. `<Card>`) is treated as a
 component call. The tag name is looked up as a Python callable, attributes
 become keyword arguments, and nested content is normalized and passed as `children`.
 
+It borrows some familiar component-tag ergonomics, but it is not JSX at the
+parser/editor level.
+
 There is no virtual DOM, no state management, no build step. It is just a
 way to write reusable HTML fragments as functions and compose them with
 familiar `<Tag>` syntax inside t-strings.
@@ -119,7 +122,7 @@ def Badge(*, children: str, tone: str = "info") -> Template:
 def Button(*, children: str, **props: object) -> Template:
     return t'<button {props}>{children}</button>'
 
-# Compose them like JSX
+# Compose them with component tags
 user = "Alice"
 status = "active"
 result = thtml(t"""
@@ -149,8 +152,17 @@ def Badge(*, children: str, tone: str = "info") -> Renderable:
 `RawHtml` still exists for injecting external trusted HTML strings, but
 it is no longer needed for component composition.
 
-Components are resolved from the caller's scope by default. For tests or
-framework integration you can pass the scope explicitly:
+Components are resolved from the caller's scope by default. For larger
+projects, prefer `registry=` so resolution does not rely on ambient names:
+
+```python
+thtml(
+    t"<Button>Save</Button>",
+    registry={"Button": my_button_component},
+)
+```
+
+You can still pass the scope explicitly for tests or framework integration:
 
 ```python
 thtml(
@@ -159,6 +171,8 @@ thtml(
     locals={},
 )
 ```
+
+`registry=` is mutually exclusive with `globals=` / `locals=`.
 
 ## Editor integration (t-linter)
 

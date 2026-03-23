@@ -50,6 +50,8 @@ page = render_html(t'<div class="base" {attrs}>content</div>')
 
 T-HTML adds component syntax to t-strings. A tag that starts with an uppercase letter is resolved to a Python callable. Attributes become keyword arguments, nested content becomes `children`.
 
+It is not JSX at the parser/editor level. It just borrows a similar component-tag feel inside PEP 750 templates.
+
 With `@component`, you can return a `Template` directly. The decorator auto-wraps it into a `Renderable`:
 
 ```python
@@ -64,6 +66,15 @@ label = "Save"
 result = thtml(t"<form><Button kind='success'>{label}</Button></form>")
 html = result.render()
 # <form><button class="btn btn-success">Save</button></form>
+```
+
+For larger projects, prefer an explicit registry:
+
+```python
+result = thtml(
+    t"<form><Button kind='success'>{label}</Button></form>",
+    registry={"Button": Button},
+)
 ```
 
 You can also wrap explicitly with `thtml()` instead of relying on the decorator:

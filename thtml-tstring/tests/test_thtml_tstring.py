@@ -115,6 +115,11 @@ def AutoCard(*, children: object, title: str):
     return t'<div class="card"><h2>{title}</h2><div class="body">{children}</div></div>'
 
 
+@component(registry={"AutoBadge": AutoBadge})
+def RegistryCard(*, children: object):
+    return t'<div class="card"><AutoBadge>{children}</AutoBadge></div>'
+
+
 @component
 def ExplicitBadge(*, children: object, tone: str = "info"):
     classes = ["badge", f"badge-{tone}"]
@@ -238,6 +243,13 @@ def test_render_html_with_explicit_scope_and_helpers() -> None:
     )
     assert (
         render_html(
+            t"<Button {attrs}>{label}</Button>",
+            registry={"Button": Button},
+        )
+        == '<button kind="secondary">Save</button>'
+    )
+    assert (
+        render_html(
             t"<Button {class_attrs}>{label}</Button>",
             globals={"Button": Button},
             locals={},
@@ -276,6 +288,18 @@ def test_render_thtml_component_lookup_failure_and_type_error() -> None:
         assert "requires a PEP 750 Template object" in str(exc)
     else:
         raise AssertionError("expected TypeError")
+
+    for api in (html, render_html, thtml):
+        with pytest.raises(TypeError, match="registry="):
+            api(
+                t"<Button />",
+                globals={"Button": Button},
+                registry={"Button": Button},
+            )  # type: ignore[call-arg]
+
+    compiled = compile_template(t"<Button />")
+    with pytest.raises(TypeError, match="registry="):
+        compiled.render([], globals={"Button": Button}, registry={"Button": Button})
 
 
 def test_component_return_normalization_accepts_sequences() -> None:
@@ -379,6 +403,53 @@ def test_component_decorator_and_explicit_wrap_produce_same_html() -> None:
     assert auto == explicit == '<span class="badge badge-success">active</span>'
 
 
+def test_registry_supports_large_project_resolution_without_frame_lookup() -> None:
+    label = "active"
+    assert (
+        html(
+            t"<AutoBadge tone='success'>{label}</AutoBadge>",
+            registry={"AutoBadge": AutoBadge},
+        )
+        == '<span class="badge badge-success">active</span>'
+    )
+    renderable = thtml(
+        t"<AutoBadge tone='success'>{label}</AutoBadge>",
+        registry={"AutoBadge": AutoBadge},
+    )
+    assert render_html(renderable) == '<span class="badge badge-success">active</span>'
+
+
+def test_registry_isolated_same_name_components() -> None:
+    label = "active"
+
+    @component
+    def Badge(*, children: object):  # noqa: N802
+        return t"<strong>{children}</strong>"
+
+    assert html(t"<Badge>{label}</Badge>", registry={"Badge": AutoBadge}) == (
+        '<span class="badge badge-info">active</span>'
+    )
+    assert html(t"<Badge>{label}</Badge>", registry={"Badge": Badge}) == (
+        "<strong>active</strong>"
+    )
+
+
+def test_registry_disables_caller_frame_lookup() -> None:
+    label = "active"
+    with pytest.raises(TemplateRuntimeError):
+        html(t"<AutoBadge>{label}</AutoBadge>", registry={})
+
+
+def test_component_registry_freezes_nested_component_resolution() -> None:
+    def AutoBadge(*, children: object) -> RawHtml:  # noqa: N802
+        return RawHtml(f"<div>{children}</div>")
+
+    assert html(
+        t"<RegistryCard>ok</RegistryCard>",
+        registry={"RegistryCard": RegistryCard, "AutoBadge": AutoBadge},
+    ) == '<div class="card"><span class="badge badge-info">ok</span></div>'
+
+
 def test_component_backend_html_auto_wrap_renders_html_children() -> None:
     label = "active"
     assert (
@@ -458,6 +529,9 @@ def test_thtml_constructor_raises_when_frame_capture_is_unavailable(
 def test_component_rejects_unknown_backend() -> None:
     with pytest.raises(ValueError):
         component(backend="xml")
+
+    with pytest.raises(ValueError):
+        component(backend="html", registry={"Button": Button})
 
 
 def test_parse_semantic_and_format_errors_cover_documented_v1_behavior() -> None:

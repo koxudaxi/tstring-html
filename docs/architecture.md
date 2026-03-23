@@ -177,6 +177,8 @@ Before `Renderable`, component composition required `RawHtml(render_html(t"...")
 
 In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST directly. Rendering walks the AST on each call. A compiled IR with static text ops and dynamic slots is a future optimization. The opaque `CompiledTemplate` types make this a non-breaking change.
 
+That AST/IR cost is intentional for SSR, static generation, validation, and future AOT-style optimization. Browser-side environments can have a different tradeoff because they already have a native HTML parser and `<template>` element available.
+
 ### Parse cache
 
 `template.strings` (the static parts) is the cache key. The same template with different values reuses the parsed AST. 256-entry LRU per backend.
@@ -185,7 +187,7 @@ In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST di
 
 T-HTML components are resolved by name. `thtml()` captures the caller's scope at creation time using `sys._getframe(1)`. The `@component` decorator uses the decorated function's module globals as default scope.
 
-Explicit `globals=`/`locals=` overrides are available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
+Explicit `registry=` is available as the preferred large-project path for component resolution. `globals=`/`locals=` overrides remain available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
 
 ### External tool integration
 

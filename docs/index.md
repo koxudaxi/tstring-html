@@ -28,6 +28,8 @@ T-HTML is a small DSL on top of t-strings. It adds one rule: a tag whose name st
 
 There is no virtual DOM, no state, no build step. It is just a way to write reusable HTML fragments as functions and compose them with `<Tag>` syntax inside t-strings.
 
+It borrows some familiar component-tag ergonomics, but it is not JSX at the parser/editor level.
+
 ```python
 from string.templatelib import Template
 from thtml_tstring import component, thtml
@@ -49,7 +51,7 @@ The `@component` decorator wraps `Template` return values into `Renderable` auto
 | Package | What it does | Install |
 |---------|--------------|---------|
 | [html-tstring](https://pypi.org/project/html-tstring/) | Plain HTML rendering with auto-escaping | `pip install html-tstring` |
-| [thtml-tstring](https://pypi.org/project/thtml-tstring/) | Adds JSX-style component tags | `pip install thtml-tstring` |
+| [thtml-tstring](https://pypi.org/project/thtml-tstring/) | Adds component tags | `pip install thtml-tstring` |
 
 `tstring-html-bindings` (the native extension) is pulled in automatically.
 

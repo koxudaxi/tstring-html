@@ -19,6 +19,7 @@ create_exception!(tstring_html_bindings, TemplateRuntimeError, TemplateError);
 
 const PARSE_CACHE_CAPACITY: usize = 256;
 const CONTRACT_VERSION: u32 = 1;
+const REGISTRY_TYPE_ERROR: &str = "registry= must be mapping-like.";
 const CONTRACT_SYMBOLS: &[&str] = &[
     "TemplateError",
     "TemplateParseError",
@@ -197,16 +198,25 @@ impl PyCompiledHtmlTemplate {
 
 #[pymethods]
 impl PyCompiledThtmlTemplate {
-    #[pyo3(signature = (values, globals = None, locals = None))]
+    #[pyo3(signature = (values, globals = None, locals = None, registry = None))]
     fn render(
         &self,
         py: Python<'_>,
         values: Vec<Py<PyAny>>,
         globals: Option<&Bound<'_, PyDict>>,
         locals: Option<&Bound<'_, PyDict>>,
+        registry: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<String> {
         let context = runtime_context_from_values(py, &values)?;
-        render_thtml_document(py, self.compiled.document(), &context, globals, locals)
+        let (globals, locals) =
+            normalize_scope_inputs(py, globals, locals, registry, "CompiledThtmlTemplate.render")?;
+        render_thtml_document(
+            py,
+            self.compiled.document(),
+            &context,
+            globals.as_ref(),
+            locals.as_ref(),
+        )
     }
 
     fn __repr__(&self) -> String {
@@ -413,6 +423,39 @@ fn runtime_context_from_values(py: Python<'_>, values: &[Py<PyAny>]) -> PyResult
     Ok(RuntimeContext {
         values: runtime_values,
     })
+}
+
+fn registry_to_scope_dict<'py>(
+    py: Python<'py>,
+    registry: &Bound<'py, PyAny>,
+) -> PyResult<Bound<'py, PyDict>> {
+    let builtins = py.import("builtins")?;
+    let dict = builtins
+        .getattr("dict")?
+        .call1((registry,))
+        .map_err(|_| PyTypeError::new_err(REGISTRY_TYPE_ERROR))?;
+    dict.cast_into::<PyDict>()
+        .map_err(|_| PyTypeError::new_err(REGISTRY_TYPE_ERROR))
+}
+
+fn normalize_scope_inputs<'py>(
+    py: Python<'py>,
+    globals: Option<&Bound<'py, PyDict>>,
+    locals: Option<&Bound<'py, PyDict>>,
+    registry: Option<&Bound<'py, PyAny>>,
+    api_name: &str,
+) -> PyResult<(Option<Bound<'py, PyDict>>, Option<Bound<'py, PyDict>>)> {
+    if registry.is_some() && (globals.is_some() || locals.is_some()) {
+        return Err(PyTypeError::new_err(format!(
+            "{api_name} does not allow combining registry= with globals= or locals=."
+        )));
+    }
+
+    if let Some(registry) = registry {
+        return Ok((Some(registry_to_scope_dict(py, registry)?), Some(PyDict::new(py))));
+    }
+
+    Ok((globals.cloned(), locals.cloned()))
 }
 
 fn render_thtml_document(
@@ -788,7 +831,7 @@ fn resolve_component<'py>(
         )));
     }
     Err(runtime_error_to_py(format!(
-        "Unknown component '{name}'. Pass globals= or locals= explicitly."
+        "Unknown component '{name}'. Pass registry=, globals=, or locals= explicitly."
     )))
 }
 
@@ -799,7 +842,7 @@ fn default_scope_dict<'py>(py: Python<'py>, globals: bool) -> PyResult<Bound<'py
         .call1((1,)) // immediate caller only
         .map_err(|_| {
             runtime_error_to_py(
-                "Caller-frame inspection failed. Pass globals= or locals= explicitly.",
+                "Caller-frame inspection failed. Pass registry=, globals=, or locals= explicitly.",
             )
         })?;
     let dict = if globals {
@@ -808,7 +851,9 @@ fn default_scope_dict<'py>(py: Python<'py>, globals: bool) -> PyResult<Bound<'py
         frame.getattr("f_locals")?
     };
     dict.cast_into::<PyDict>().map_err(|_| {
-        runtime_error_to_py("Caller-frame inspection failed. Pass globals= or locals= explicitly.")
+        runtime_error_to_py(
+            "Caller-frame inspection failed. Pass registry=, globals=, or locals= explicitly.",
+        )
     })
 }
 
@@ -886,17 +931,26 @@ fn compile_thtml_template(
     })
 }
 
-#[pyfunction(signature = (template, globals = None, locals = None))]
+#[pyfunction(signature = (template, globals = None, locals = None, registry = None))]
 fn render_thtml_template(
     py: Python<'_>,
     template: &Bound<'_, PyAny>,
     globals: Option<&Bound<'_, PyDict>>,
     locals: Option<&Bound<'_, PyDict>>,
+    registry: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<String> {
     let bound = extract_template(py, template, "render_thtml_template")?;
     let compiled = compile_cached_thtml(&bound)?;
     let context = runtime_context_from_bound(py, &bound)?;
-    render_thtml_document(py, compiled.document(), &context, globals, locals)
+    let (globals, locals) =
+        normalize_scope_inputs(py, globals, locals, registry, "render_thtml_template")?;
+    render_thtml_document(
+        py,
+        compiled.document(),
+        &context,
+        globals.as_ref(),
+        locals.as_ref(),
+    )
 }
 
 #[pymodule]

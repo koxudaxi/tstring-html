@@ -26,7 +26,10 @@ def Badge(*, children: object, tone: str = "info") -> ComponentValue:
 
 
 name: str = "cached"
-page = thtml(t"<div><Badge tone='info'>{name}</Badge></div>")
+page = thtml(
+    t"<div><Badge tone='info'>{name}</Badge></div>",
+    registry={"Badge": Badge},
+)
 
 print(page.render())
 # <div><span class="badge badge-info">cached</span></div>
