@@ -444,10 +444,13 @@ def test_component_registry_freezes_nested_component_resolution() -> None:
     def AutoBadge(*, children: object) -> RawHtml:  # noqa: N802
         return RawHtml(f"<div>{children}</div>")
 
-    assert html(
-        t"<RegistryCard>ok</RegistryCard>",
-        registry={"RegistryCard": RegistryCard, "AutoBadge": AutoBadge},
-    ) == '<div class="card"><span class="badge badge-info">ok</span></div>'
+    assert (
+        html(
+            t"<RegistryCard>ok</RegistryCard>",
+            registry={"RegistryCard": RegistryCard, "AutoBadge": AutoBadge},
+        )
+        == '<div class="card"><span class="badge badge-info">ok</span></div>'
+    )
 
 
 def test_component_backend_html_auto_wrap_renders_html_children() -> None:
