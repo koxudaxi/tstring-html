@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 **Full Changelog**: https://github.com/koxudaxi/tstring-html/commits/0.1.0
 
 ---
+## [0.1.8](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.8) - 2026-03-24
+
+## What's Changed
+* Add tdom backend by @koxudaxi in https://github.com/koxudaxi/tstring-html/pull/10
+
+
+**Full Changelog**: https://github.com/koxudaxi/tstring-html/compare/0.1.7...0.1.8
+
+---
+
 ## [0.1.7](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.7) - 2026-03-24
 
 ## What's Changed
