@@ -30,6 +30,10 @@ The decorator is a no-op for typing purposes. `@component` is `@component(backen
 If a component returns a template that contains nested component tags, you can freeze explicit nested resolution with `@component(registry=...)`:
 
 ```python
+@component
+def Icon() -> Template:
+    return t'<span class="icon" aria-hidden="true">*</span>'
+
 @component(registry={"Icon": Icon})
 def ToolbarButton(*, children: str) -> Template:
     return t'<button><Icon />{children}</button>'

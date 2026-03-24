@@ -43,7 +43,8 @@ def _capture_scope(
     except AttributeError, ValueError:
         raise TemplateRuntimeError(
             "Caller-frame inspection failed. "
-            "Pass registry=, globals=, or locals= explicitly."
+            "On runtimes without frame inspection you must pass registry=, "
+            "or both globals= and locals= explicitly."
         ) from None
 
     captured_globals = dict(globals) if globals is not None else dict(frame.f_globals)

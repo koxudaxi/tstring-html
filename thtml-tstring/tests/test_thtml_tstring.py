@@ -407,14 +407,14 @@ def test_registry_supports_large_project_resolution_without_frame_lookup() -> No
     label = "active"
     assert (
         html(
-            t"<AutoBadge tone='success'>{label}</AutoBadge>",
-            registry={"AutoBadge": AutoBadge},
+            t"<RegistryBadge tone='success'>{label}</RegistryBadge>",
+            registry={"RegistryBadge": AutoBadge},
         )
         == '<span class="badge badge-success">active</span>'
     )
     renderable = thtml(
-        t"<AutoBadge tone='success'>{label}</AutoBadge>",
-        registry={"AutoBadge": AutoBadge},
+        t"<RegistryBadge tone='success'>{label}</RegistryBadge>",
+        registry={"RegistryBadge": AutoBadge},
     )
     assert render_html(renderable) == '<span class="badge badge-success">active</span>'
 

@@ -18,7 +18,7 @@ create_exception!(tstring_html_bindings, TemplateSemanticError, TemplateError);
 create_exception!(tstring_html_bindings, TemplateRuntimeError, TemplateError);
 
 const PARSE_CACHE_CAPACITY: usize = 256;
-const CONTRACT_VERSION: u32 = 1;
+const CONTRACT_VERSION: u32 = 2;
 const REGISTRY_TYPE_ERROR: &str = "registry= must be mapping-like.";
 const CONTRACT_SYMBOLS: &[&str] = &[
     "TemplateError",
@@ -207,9 +207,14 @@ impl PyCompiledThtmlTemplate {
         locals: Option<&Bound<'_, PyDict>>,
         registry: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<String> {
+        let (globals, locals) = normalize_scope_inputs(
+            py,
+            globals,
+            locals,
+            registry,
+            "CompiledThtmlTemplate.render",
+        )?;
         let context = runtime_context_from_values(py, &values)?;
-        let (globals, locals) =
-            normalize_scope_inputs(py, globals, locals, registry, "CompiledThtmlTemplate.render")?;
         render_thtml_document(
             py,
             self.compiled.document(),
@@ -452,7 +457,10 @@ fn normalize_scope_inputs<'py>(
     }
 
     if let Some(registry) = registry {
-        return Ok((Some(registry_to_scope_dict(py, registry)?), Some(PyDict::new(py))));
+        return Ok((
+            Some(registry_to_scope_dict(py, registry)?),
+            Some(PyDict::new(py)),
+        ));
     }
 
     Ok((globals.cloned(), locals.cloned()))
@@ -940,10 +948,10 @@ fn render_thtml_template(
     registry: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<String> {
     let bound = extract_template(py, template, "render_thtml_template")?;
-    let compiled = compile_cached_thtml(&bound)?;
-    let context = runtime_context_from_bound(py, &bound)?;
     let (globals, locals) =
         normalize_scope_inputs(py, globals, locals, registry, "render_thtml_template")?;
+    let compiled = compile_cached_thtml(&bound)?;
+    let context = runtime_context_from_bound(py, &bound)?;
     render_thtml_document(
         py,
         compiled.document(),

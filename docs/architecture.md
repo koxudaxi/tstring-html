@@ -51,9 +51,9 @@ format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledHtmlTemplate
 
 # thtml-tstring
-thtml(template, *, globals=None, locals=None) -> Renderable  # deferred
-html(template, *, globals=None, locals=None) -> str           # eager
-render_html(template, *, globals=None, locals=None) -> str    # eager
+thtml(template, *, registry=None, globals=None, locals=None) -> Renderable  # deferred
+html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
+render_html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
 check_template(template) -> None
 format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledThtmlTemplate
@@ -83,7 +83,7 @@ One crate that is both the PyO3 adapter and the maturin build target:
 | Parse cache | 256-entry LRU per backend (HTML / T-HTML) |
 | Component resolution | Frame inspection for caller scope, explicit override |
 | Shared primitives | `Fragment`, `RawHtml`, `Renderable`, exception hierarchy |
-| Contract | `__contract_version__ = 1` with symbol list |
+| Contract | `__contract_version__ = 2` with symbol list |
 
 When the bindings encounter a `Renderable` as a runtime value (in children, component returns, etc.), they call `.render()` and treat the result as safe HTML, similar to `RawHtml`.
 

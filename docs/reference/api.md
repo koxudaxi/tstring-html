@@ -136,7 +136,7 @@ Eager string renderer. Returns a `str` directly (not a `Renderable`).
 from thtml_tstring import html
 
 def html(
-    template: Template,
+    template: Template | Renderable,
     *,
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
@@ -149,6 +149,18 @@ This is the existing eager API, kept for backward compatibility.
 ### `render_html`
 
 Alias for `html()` with the same signature.
+
+```python
+from thtml_tstring import render_html
+
+def render_html(
+    template: Template | Renderable,
+    *,
+    globals: dict[str, Any] | None = None,
+    locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
+) -> str: ...
+```
 
 ### `check_template`
 
