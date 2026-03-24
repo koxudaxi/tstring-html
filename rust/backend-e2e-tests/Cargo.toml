@@ -14,4 +14,5 @@ serde = { version = "1.0", features = ["derive"] }
 toml = "0.8"
 tstring-html = { version = "0.1.5", path = "../tstring-html-rs" }
 tstring-syntax.workspace = true
+tstring-tdom = { version = "0.1.5", path = "../tstring-tdom-rs" }
 tstring-thtml = { version = "0.1.5", path = "../tstring-thtml-rs" }

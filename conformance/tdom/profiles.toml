@@ -1,0 +1,3 @@
+supported_profiles = ["default"]
+default_profile = "default"
+manifest_path = "profiles/default/spec-map.toml"
