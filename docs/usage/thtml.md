@@ -8,6 +8,8 @@ When the renderer sees `<Card title="hello">`, it looks up `Card` as a Python ca
 
 The `thtml-tstring` package provides this on top of the same parser and escaping used by `html-tstring`.
 
+T-HTML is not JSX at the parser/editor level. It borrows some familiar component-tag ergonomics, but it stays within PEP 750 template strings.
+
 ## Defining components
 
 A component is any callable that takes keyword arguments and returns something renderable. With `@component`, you can return a `Template` directly:
@@ -24,6 +26,18 @@ def Button(*, children: str, kind: str = "primary") -> Template:
 The `@component` decorator checks the return value. If it is a `Template`, the decorator auto-wraps it into a `Renderable` (the same thing `thtml()` produces). If it is already a `Renderable`, `RawHtml`, `str`, or another supported type, it passes through as-is.
 
 The decorator is a no-op for typing purposes. `@component` is `@component(backend="thtml")` by default.
+
+If a component returns a template that contains nested component tags, you can freeze explicit nested resolution with `@component(registry=...)`:
+
+```python
+@component
+def Icon() -> Template:
+    return t'<span class="icon" aria-hidden="true">*</span>'
+
+@component(registry={"Icon": Icon})
+def ToolbarButton(*, children: str) -> Template:
+    return t'<button><Icon />{children}</button>'
+```
 
 ## Renderable
 
@@ -74,13 +88,21 @@ from thtml_tstring import thtml
 result = thtml(t"<Button>Save</Button>")
 ```
 
-You can also pass the scope explicitly, which is useful in tests:
+For larger projects, prefer `registry=` so component resolution does not rely on ambient names:
+
+```python
+result = thtml(t"<Button>Save</Button>", registry={"Button": Button})
+```
+
+You can also pass the scope explicitly, which is useful in tests and framework integration:
 
 ```python
 thtml(t"<Button>Save</Button>", globals={"Button": Button}, locals={})
 ```
 
 Lookup order: `locals` first, then `globals`. The resolved name must be callable.
+
+`registry=` is mutually exclusive with `globals=` / `locals=`. Mixed use raises `TypeError`. When `registry=` is supplied, T-HTML resolves component names only from that mapping and does not fall back to caller-frame inspection.
 
 For `thtml()`, the scope is captured at creation time, not at render time. If the caller frame is not available, a `TemplateRuntimeError` is raised with a message to pass `globals=`/`locals=` explicitly.
 
@@ -186,6 +208,15 @@ def Badge(*, children: str, tone: str = "info") -> Renderable:
         t'<span class="badge badge-{tone}">{children}</span>',
         globals={"InnerComponent": InnerComponent},
     )
+```
+
+For larger component trees, prefer `registry=` over ambient lookup:
+
+```python
+result = thtml(
+    t"<Badge tone='info'>ok</Badge>",
+    registry={"Badge": Badge},
+)
 ```
 
 ## RawHtml

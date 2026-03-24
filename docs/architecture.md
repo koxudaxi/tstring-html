@@ -51,9 +51,9 @@ format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledHtmlTemplate
 
 # thtml-tstring
-thtml(template, *, globals=None, locals=None) -> Renderable  # deferred
-html(template, *, globals=None, locals=None) -> str           # eager
-render_html(template, *, globals=None, locals=None) -> str    # eager
+thtml(template, *, registry=None, globals=None, locals=None) -> Renderable  # deferred
+html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
+render_html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
 check_template(template) -> None
 format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledThtmlTemplate
@@ -83,7 +83,7 @@ One crate that is both the PyO3 adapter and the maturin build target:
 | Parse cache | 256-entry LRU per backend (HTML / T-HTML) |
 | Component resolution | Frame inspection for caller scope, explicit override |
 | Shared primitives | `Fragment`, `RawHtml`, `Renderable`, exception hierarchy |
-| Contract | `__contract_version__ = 1` with symbol list |
+| Contract | `__contract_version__ = 2` with symbol list |
 
 When the bindings encounter a `Renderable` as a runtime value (in children, component returns, etc.), they call `.render()` and treat the result as safe HTML, similar to `RawHtml`.
 
@@ -177,6 +177,8 @@ Before `Renderable`, component composition required `RawHtml(render_html(t"...")
 
 In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST directly. Rendering walks the AST on each call. A compiled IR with static text ops and dynamic slots is a future optimization. The opaque `CompiledTemplate` types make this a non-breaking change.
 
+That AST/IR cost is intentional for SSR, static generation, validation, and future AOT-style optimization. Browser-side environments can have a different tradeoff because they already have a native HTML parser and `<template>` element available.
+
 ### Parse cache
 
 `template.strings` (the static parts) is the cache key. The same template with different values reuses the parsed AST. 256-entry LRU per backend.
@@ -185,7 +187,7 @@ In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST di
 
 T-HTML components are resolved by name. `thtml()` captures the caller's scope at creation time using `sys._getframe(1)`. The `@component` decorator uses the decorated function's module globals as default scope.
 
-Explicit `globals=`/`locals=` overrides are available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
+Explicit `registry=` is available as the preferred large-project path for component resolution. `globals=`/`locals=` overrides remain available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
 
 ### External tool integration
 

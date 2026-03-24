@@ -33,3 +33,15 @@ def test_compiled_thtml_template_uses_render_scope_per_call() -> None:
     assert compiled.render(["Two"], globals={"Badge": AltBadge}, locals={}) == (
         '<strong tone="info">Two</strong>'
     )
+
+
+def test_compiled_thtml_template_accepts_registry() -> None:
+    label = "first"
+    compiled = compile_template(t"<Badge tone='info'>{label}</Badge>")
+
+    assert compiled.render(["One"], registry={"Badge": Badge}) == (
+        '<span tone="info">One</span>'
+    )
+    assert compiled.render(["Two"], registry={"Badge": AltBadge}) == (
+        '<strong tone="info">Two</strong>'
+    )

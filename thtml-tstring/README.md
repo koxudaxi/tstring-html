@@ -11,6 +11,6 @@ def Button(*, children: str, kind: str = "primary"):
     return t'<button class="{classes}">{children}</button>'
 
 label = "Save"
-page = thtml(t"<Button kind='primary'>{label}</Button>")
+page = thtml(t"<Button kind='primary'>{label}</Button>", registry={"Button": Button})
 assert page.render() == '<button class="primary">Save</button>'
 ```

@@ -35,7 +35,7 @@ def Badge(*, children: object, tone: Tone = "info") -> ComponentValue:
     return t'<span class="{classes}">{children}</span>'
 
 
-@component
+@component(registry={"Badge": Badge})
 def MetricCard(*, children: object, label: str, tone: Tone = "info") -> ComponentValue:
     return t"""\
 <section class="metric-card">
@@ -62,7 +62,8 @@ def dashboard_cards(metrics: list[Metric]) -> Fragment:
         [
             thtml(
                 t'<MetricCard label="{metric.label}" tone="{metric.tone}">'
-                t"{metric.value}</MetricCard>"
+                t"{metric.value}</MetricCard>",
+                registry={"MetricCard": MetricCard},
             )
             for metric in metrics
         ]
@@ -76,7 +77,9 @@ metrics = [
 ]
 
 page = thtml(
-    t'<DashboardShell title="Ops dashboard">{dashboard_cards(metrics)}</DashboardShell>'
+    t'<DashboardShell title="Ops dashboard">'
+    t"{dashboard_cards(metrics)}</DashboardShell>",
+    registry={"DashboardShell": DashboardShell},
 )
 
 print(page.render())

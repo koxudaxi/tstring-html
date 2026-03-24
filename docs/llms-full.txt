@@ -30,6 +30,8 @@ T-HTML is a small DSL on top of t-strings. It adds one rule: a tag whose name st
 
 There is no virtual DOM, no state, no build step. It is just a way to write reusable HTML fragments as functions and compose them with `<Tag>` syntax inside t-strings.
 
+It borrows some familiar component-tag ergonomics, but it is not JSX at the parser/editor level.
+
 ```python
 from string.templatelib import Template
 from thtml_tstring import component, thtml
@@ -51,7 +53,7 @@ The `@component` decorator wraps `Template` return values into `Renderable` auto
 | Package | What it does | Install |
 |---------|--------------|---------|
 | [html-tstring](https://pypi.org/project/html-tstring/) | Plain HTML rendering with auto-escaping | `pip install html-tstring` |
-| [thtml-tstring](https://pypi.org/project/thtml-tstring/) | Adds JSX-style component tags | `pip install thtml-tstring` |
+| [thtml-tstring](https://pypi.org/project/thtml-tstring/) | Adds component tags | `pip install thtml-tstring` |
 
 `tstring-html-bindings` (the native extension) is pulled in automatically.
 
@@ -206,6 +208,8 @@ page = render_html(t'<div class="base" {attrs}>content</div>')
 
 T-HTML adds component syntax to t-strings. A tag that starts with an uppercase letter is resolved to a Python callable. Attributes become keyword arguments, nested content becomes `children`.
 
+It is not JSX at the parser/editor level. It just borrows a similar component-tag feel inside PEP 750 templates.
+
 With `@component`, you can return a `Template` directly. The decorator auto-wraps it into a `Renderable`:
 
 ```python
@@ -220,6 +224,15 @@ label = "Save"
 result = thtml(t"<form><Button kind='success'>{label}</Button></form>")
 html = result.render()
 # <form><button class="btn btn-success">Save</button></form>
+```
+
+For larger projects, prefer an explicit registry:
+
+```python
+result = thtml(
+    t"<form><Button kind='success'>{label}</Button></form>",
+    registry={"Button": Button},
+)
 ```
 
 You can also wrap explicitly with `thtml()` instead of relying on the decorator:
@@ -436,6 +449,8 @@ When the renderer sees `<Card title="hello">`, it looks up `Card` as a Python ca
 
 The `thtml-tstring` package provides this on top of the same parser and escaping used by `html-tstring`.
 
+T-HTML is not JSX at the parser/editor level. It borrows some familiar component-tag ergonomics, but it stays within PEP 750 template strings.
+
 ## Defining components
 
 A component is any callable that takes keyword arguments and returns something renderable. With `@component`, you can return a `Template` directly:
@@ -452,6 +467,18 @@ def Button(*, children: str, kind: str = "primary") -> Template:
 The `@component` decorator checks the return value. If it is a `Template`, the decorator auto-wraps it into a `Renderable` (the same thing `thtml()` produces). If it is already a `Renderable`, `RawHtml`, `str`, or another supported type, it passes through as-is.
 
 The decorator is a no-op for typing purposes. `@component` is `@component(backend="thtml")` by default.
+
+If a component returns a template that contains nested component tags, you can freeze explicit nested resolution with `@component(registry=...)`:
+
+```python
+@component
+def Icon() -> Template:
+    return t'<span class="icon" aria-hidden="true">*</span>'
+
+@component(registry={"Icon": Icon})
+def ToolbarButton(*, children: str) -> Template:
+    return t'<button><Icon />{children}</button>'
+```
 
 ## Renderable
 
@@ -502,13 +529,21 @@ from thtml_tstring import thtml
 result = thtml(t"<Button>Save</Button>")
 ```
 
-You can also pass the scope explicitly, which is useful in tests:
+For larger projects, prefer `registry=` so component resolution does not rely on ambient names:
+
+```python
+result = thtml(t"<Button>Save</Button>", registry={"Button": Button})
+```
+
+You can also pass the scope explicitly, which is useful in tests and framework integration:
 
 ```python
 thtml(t"<Button>Save</Button>", globals={"Button": Button}, locals={})
 ```
 
 Lookup order: `locals` first, then `globals`. The resolved name must be callable.
+
+`registry=` is mutually exclusive with `globals=` / `locals=`. Mixed use raises `TypeError`. When `registry=` is supplied, T-HTML resolves component names only from that mapping and does not fall back to caller-frame inspection.
 
 For `thtml()`, the scope is captured at creation time, not at render time. If the caller frame is not available, a `TemplateRuntimeError` is raised with a message to pass `globals=`/`locals=` explicitly.
 
@@ -614,6 +649,15 @@ def Badge(*, children: str, tone: str = "info") -> Renderable:
         t'<span class="badge badge-{tone}">{children}</span>',
         globals={"InnerComponent": InnerComponent},
     )
+```
+
+For larger component trees, prefer `registry=` over ambient lookup:
+
+```python
+result = thtml(
+    t"<Badge tone='info'>ok</Badge>",
+    registry={"Badge": Badge},
+)
 ```
 
 ## RawHtml
@@ -918,9 +962,9 @@ format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledHtmlTemplate
 
 # thtml-tstring
-thtml(template, *, globals=None, locals=None) -> Renderable  # deferred
-html(template, *, globals=None, locals=None) -> str           # eager
-render_html(template, *, globals=None, locals=None) -> str    # eager
+thtml(template, *, registry=None, globals=None, locals=None) -> Renderable  # deferred
+html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
+render_html(template | renderable, *, registry=None, globals=None, locals=None) -> str  # eager
 check_template(template) -> None
 format_template(template, *, line_length=80) -> str
 compile_template(template) -> CompiledThtmlTemplate
@@ -950,7 +994,7 @@ One crate that is both the PyO3 adapter and the maturin build target:
 | Parse cache | 256-entry LRU per backend (HTML / T-HTML) |
 | Component resolution | Frame inspection for caller scope, explicit override |
 | Shared primitives | `Fragment`, `RawHtml`, `Renderable`, exception hierarchy |
-| Contract | `__contract_version__ = 1` with symbol list |
+| Contract | `__contract_version__ = 2` with symbol list |
 
 When the bindings encounter a `Renderable` as a runtime value (in children, component returns, etc.), they call `.render()` and treat the result as safe HTML, similar to `RawHtml`.
 
@@ -1044,6 +1088,8 @@ Before `Renderable`, component composition required `RawHtml(render_html(t"...")
 
 In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST directly. Rendering walks the AST on each call. A compiled IR with static text ops and dynamic slots is a future optimization. The opaque `CompiledTemplate` types make this a non-breaking change.
 
+That AST/IR cost is intentional for SSR, static generation, validation, and future AOT-style optimization. Browser-side environments can have a different tradeoff because they already have a native HTML parser and `<template>` element available.
+
 ### Parse cache
 
 `template.strings` (the static parts) is the cache key. The same template with different values reuses the parsed AST. 256-entry LRU per backend.
@@ -1052,7 +1098,7 @@ In v1, `CompiledHtmlTemplate` and `CompiledThtmlTemplate` wrap the parsed AST di
 
 T-HTML components are resolved by name. `thtml()` captures the caller's scope at creation time using `sys._getframe(1)`. The `@component` decorator uses the decorated function's module globals as default scope.
 
-Explicit `globals=`/`locals=` overrides are available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
+Explicit `registry=` is available as the preferred large-project path for component resolution. `globals=`/`locals=` overrides remain available for tests and framework integration. The scope is frozen at creation time and not re-inspected at render time.
 
 ### External tool integration
 
@@ -1239,6 +1285,7 @@ def thtml(
     *,
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> Renderable: ...
 ```
 
@@ -1247,8 +1294,11 @@ def thtml(
 | `template` | `Template` | A PEP 750 `t"..."` literal |
 | `globals` | `dict[str, Any] \| None` | Globals for component resolution. Default: caller's `f_globals` |
 | `locals` | `dict[str, Any] \| None` | Locals for component resolution. Default: caller's `f_locals` |
+| `registry` | `Mapping[str, object] \| None` | Explicit component registry. Recommended for larger projects. |
 
 Scope is captured once at creation time and frozen. Rendering does not re-inspect the caller frame.
+
+`registry` is mutually exclusive with `globals` / `locals`. When provided, it becomes the only component source for that renderable.
 
 ### `html`
 
@@ -1258,10 +1308,11 @@ Eager string renderer. Returns a `str` directly (not a `Renderable`).
 from thtml_tstring import html
 
 def html(
-    template: Template,
+    template: Template | Renderable,
     *,
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> str: ...
 ```
 
@@ -1270,6 +1321,18 @@ This is the existing eager API, kept for backward compatibility.
 ### `render_html`
 
 Alias for `html()` with the same signature.
+
+```python
+from thtml_tstring import render_html
+
+def render_html(
+    template: Template | Renderable,
+    *,
+    globals: dict[str, Any] | None = None,
+    locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
+) -> str: ...
+```
 
 ### `check_template`
 
@@ -1311,6 +1374,7 @@ def render(
     values: list[object],
     globals: dict[str, Any] | None = None,
     locals: dict[str, Any] | None = None,
+    registry: Mapping[str, object] | None = None,
 ) -> str: ...
 ```
 
@@ -1330,9 +1394,20 @@ def MyComponent(*, children: str, **props: object) -> Template:
 @component(backend="thtml")
 def MyComponent(*, children: str, **props: object) -> Template:
     return t"<div>{children}</div>"
+
+# freeze nested component resolution explicitly
+@component
+def Icon(*, children: str = "") -> Template:
+    return t"<svg aria-hidden='true'></svg>"
+
+@component(registry={"Icon": Icon})
+def ToolbarButton(*, children: str, **props: object) -> Template:
+    return t"<button><Icon />{children}</button>"
 ```
 
 When the decorated function returns a `Template`, the decorator wraps it into a `Renderable`. Other return types (`Renderable`, `RawHtml`, `str`, `Fragment`, `list`, `None`, scalars) pass through unchanged.
+
+`registry=` is only supported for the default T-HTML backend. It freezes nested component resolution for templates returned by that decorated function.
 
 Attribute names are forwarded literally from template syntax. In v1, names like `class`,
 `aria-label`, and `data-id` are not remapped to Python identifiers such as `class_` or
