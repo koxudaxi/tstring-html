@@ -311,6 +311,7 @@ dependencies = [
  "toml",
  "tstring-html",
  "tstring-syntax",
+ "tstring-tdom",
  "tstring-thtml",
 ]
 
@@ -331,6 +332,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ad566997891426a640b07af2330b9c08ad04e918f905880885d78a21304d9ee"
 dependencies = [
  "num-bigint",
+]
+
+[[package]]
+name = "tstring-tdom"
+version = "0.1.5"
+dependencies = [
+ "tstring-format-doc",
+ "tstring-syntax",
 ]
 
 [[package]]

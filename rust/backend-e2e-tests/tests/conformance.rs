@@ -4,6 +4,7 @@ use serde::Deserialize;
 use tstring_html as backend_html;
 use tstring_html::{RuntimeContext, RuntimeValue};
 use tstring_syntax::{TemplateInput, TemplateInterpolation, TemplateSegment};
+use tstring_tdom as backend_tdom;
 use tstring_thtml as backend_thtml;
 
 #[derive(Debug, Deserialize)]
@@ -53,6 +54,21 @@ fn interpolation_without_raw(index: usize, expression: &str) -> TemplateSegment 
     })
 }
 
+fn interpolation_with_format(
+    index: usize,
+    expression: &str,
+    raw_source: &str,
+    format_spec: &str,
+) -> TemplateSegment {
+    TemplateSegment::Interpolation(TemplateInterpolation {
+        expression: expression.to_owned(),
+        conversion: None,
+        format_spec: format_spec.to_owned(),
+        interpolation_index: index,
+        raw_source: Some(raw_source.to_owned()),
+    })
+}
+
 fn repo_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
@@ -97,6 +113,27 @@ fn html_manifest_metadata_is_100_percent_and_unique() {
 #[test]
 fn thtml_manifest_metadata_is_100_percent_and_unique() {
     let manifest = load_manifest("thtml");
+    assert_eq!(manifest.claim_status, "100%");
+    assert!(!manifest.spec_title.is_empty());
+    assert!(!manifest.provenance.source.is_empty());
+    assert!(!manifest.provenance.snapshot.is_empty());
+    let mut ids = BTreeSet::new();
+    for case in &manifest.cases {
+        assert!(
+            ids.insert(case.case_id.clone()),
+            "duplicate case id {}",
+            case.case_id
+        );
+        assert!(matches!(
+            case.execution_layer.as_str(),
+            "python" | "rust" | "both"
+        ));
+    }
+}
+
+#[test]
+fn tdom_manifest_metadata_is_100_percent_and_unique() {
+    let manifest = load_manifest("tdom");
     assert_eq!(manifest.claim_status, "100%");
     assert!(!manifest.spec_title.is_empty());
     assert!(!manifest.provenance.source.is_empty());
@@ -671,6 +708,122 @@ fn thtml_manifest_cases_match_rust_seam() {
                 assert!(err.message.contains("raw_source"));
             }
             other => panic!("unhandled T-HTML rust conformance case {other}"),
+        }
+    }
+}
+
+#[test]
+fn tdom_manifest_cases_match_rust_seam() {
+    let manifest = load_manifest("tdom");
+    for case in manifest
+        .cases
+        .iter()
+        .filter(|case| matches!(case.execution_layer.as_str(), "rust" | "both"))
+    {
+        match case.case_id.as_str() {
+            "component-format-roundtrip" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<".into()),
+                    interpolation(0, "Button", "{Button}"),
+                    TemplateSegment::StaticText(" kind=".into()),
+                    interpolation(1, "kind", "{kind}"),
+                    TemplateSegment::StaticText(">".into()),
+                    interpolation(2, "label", "{label}"),
+                    TemplateSegment::StaticText("</".into()),
+                    interpolation(3, "Button", "{Button}"),
+                    TemplateSegment::StaticText(">".into()),
+                ]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "comment-interpolation-roundtrip" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<!--before ".into()),
+                    interpolation(0, "value", "{value}"),
+                    TemplateSegment::StaticText(" after-->".into()),
+                ]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "raw-text-script-roundtrip" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<script>if (a < b) ".into()),
+                    interpolation(0, "body", "{body}"),
+                    TemplateSegment::StaticText("</script>".into()),
+                ]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "rcdata-title-roundtrip" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<title>Hello ".into()),
+                    interpolation(0, "title", "{title}"),
+                    TemplateSegment::StaticText("</title>".into()),
+                ]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "doctype-html-roundtrip" => {
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<!doctype html>".into(),
+                )]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "doctype-unknown-rejected" => {
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<!doctype-alt html>".into(),
+                )]);
+                let err = backend_tdom::check_template(&input).unwrap_err();
+                assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
+                assert!(err.message.contains("DOCTYPE"));
+            }
+            "component-name-singleton-rejected" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<".into()),
+                    interpolation(0, "Button", "{Button}"),
+                    TemplateSegment::StaticText("Suffix></".into()),
+                    interpolation(1, "Button", "{Button}"),
+                    TemplateSegment::StaticText(">".into()),
+                ]);
+                let err = backend_tdom::check_template(&input).unwrap_err();
+                assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
+                assert!(err.message.contains("exactly one interpolation"));
+            }
+            "void-normalization" => {
+                let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+                    "<BR><Img>".into(),
+                )]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "raw-source-preserved" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<div data-safe=".into()),
+                    interpolation_with_format(0, "value", "{value:safe}", "safe"),
+                    TemplateSegment::StaticText(">".into()),
+                    interpolation_with_format(1, "other", "{other:unsafe}", "unsafe"),
+                    TemplateSegment::StaticText("</div>".into()),
+                ]);
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
+            }
+            "mismatched-component-rejected" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<".into()),
+                    interpolation(0, "Button", "{Button}"),
+                    TemplateSegment::StaticText("></".into()),
+                    interpolation(1, "Other", "{Other}"),
+                    TemplateSegment::StaticText(">".into()),
+                ]);
+                let err = backend_tdom::check_template(&input).unwrap_err();
+                assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
+                assert!(
+                    err.message
+                        .contains("Mismatched component start and end callables")
+                );
+            }
+            other => panic!("unhandled TDOM rust conformance case {other}"),
         }
     }
 }

@@ -1,0 +1,13 @@
+[package]
+name = "tstring-tdom"
+description = "TDOM parser and formatter backend for PEP 750 template strings"
+edition.workspace = true
+homepage.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+tstring-format-doc = { version = "0.1.5", path = "../tstring-format-doc-rs" }
+tstring-syntax.workspace = true

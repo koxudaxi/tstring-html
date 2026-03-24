@@ -4,6 +4,7 @@ members = [
     "tstring-format-doc-rs",
     "tstring-html-bindings",
     "tstring-html-rs",
+    "tstring-tdom-rs",
     "tstring-thtml-rs",
 ]
 resolver = "2"

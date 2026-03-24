@@ -1,0 +1,86 @@
+spec_title = "tstring-html v1 TDOM"
+claim_status = "100%"
+
+[provenance]
+source = "repo-local v1 TDOM contract"
+snapshot = "2026-03-25"
+
+[[cases]]
+case_id = "component-format-roundtrip"
+spec_ref = "v1.tdom.component-format-roundtrip"
+operation = "format_template"
+expected = "<{Button} kind={kind}>{label}</{Button}>"
+execution_layer = "rust"
+note = "Component tag names are exactly one interpolation in opening and closing tags."
+
+[[cases]]
+case_id = "comment-interpolation-roundtrip"
+spec_ref = "v1.tdom.comment-interpolation"
+operation = "format_template"
+expected = "<!--before {value} after-->"
+execution_layer = "rust"
+note = "Comments retain interpolation spans and formatter output."
+
+[[cases]]
+case_id = "raw-text-script-roundtrip"
+spec_ref = "v1.tdom.raw-text-script"
+operation = "format_template"
+expected = "<script>if (a < b) {body}</script>"
+execution_layer = "rust"
+note = "Raw-text elements preserve text and interpolation nodes until the matching end tag."
+
+[[cases]]
+case_id = "rcdata-title-roundtrip"
+spec_ref = "v1.tdom.rcdata-title"
+operation = "format_template"
+expected = "<title>Hello {title}</title>"
+execution_layer = "rust"
+note = "RCDATA elements such as title preserve interpolation nodes and close-tag matching."
+
+[[cases]]
+case_id = "doctype-html-roundtrip"
+spec_ref = "v1.tdom.doctype-html"
+operation = "format_template"
+expected = "<!DOCTYPE html>"
+execution_layer = "rust"
+note = "The formatter canonicalizes the supported HTML doctype."
+
+[[cases]]
+case_id = "doctype-unknown-rejected"
+spec_ref = "v1.tdom.doctype-unknown"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "rust"
+note = "Unsupported doctype declarations are rejected."
+
+[[cases]]
+case_id = "component-name-singleton-rejected"
+spec_ref = "v1.tdom.component-name-singleton"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "rust"
+note = "Component tag names must be exactly one interpolation."
+
+[[cases]]
+case_id = "void-normalization"
+spec_ref = "v1.tdom.void-normalization"
+operation = "format_template"
+expected = "<br /><img />"
+execution_layer = "rust"
+note = "Void tags are accepted case-insensitively and formatted canonically."
+
+[[cases]]
+case_id = "raw-source-preserved"
+spec_ref = "v1.tdom.raw-source-preserved"
+operation = "format_template"
+expected = "<div data-safe={value:safe}>{other:unsafe}</div>"
+execution_layer = "rust"
+note = "Interpolation raw_source is preserved verbatim, including safe and unsafe format specs."
+
+[[cases]]
+case_id = "mismatched-component-rejected"
+spec_ref = "v1.tdom.component-mismatch"
+operation = "check_template"
+expected_error = "TemplateParseError"
+execution_layer = "rust"
+note = "Statically mismatched component start and end callables are rejected."
