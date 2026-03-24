@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 **Full Changelog**: https://github.com/koxudaxi/tstring-html/commits/0.1.0
 
 ---
+## [0.1.7](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.7) - 2026-03-24
+
+## What's Changed
+* Add explicit T-HTML registries by @koxudaxi in https://github.com/koxudaxi/tstring-html/pull/9
+
+
+**Full Changelog**: https://github.com/koxudaxi/tstring-html/compare/0.1.6...0.1.7
+
+---
+
 ## [0.1.6](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.6) - 2026-03-23
 
 ## What's Changed
