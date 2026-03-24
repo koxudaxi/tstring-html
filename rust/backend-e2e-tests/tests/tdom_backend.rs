@@ -136,6 +136,15 @@ fn tdom_backend_raw_text_and_rcdata_cases_round_trip() {
 
 #[test]
 fn tdom_backend_rejects_invalid_declarations_and_tag_names() {
+    let mixed_case_doctype = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+        "<!DocType html>".to_owned(),
+    )]);
+    backend_tdom::check_template(&mixed_case_doctype).expect("mixed-case doctype should parse");
+    assert_eq!(
+        backend_tdom::format_template(&mixed_case_doctype).expect("format mixed-case doctype"),
+        "<!DOCTYPE html>"
+    );
+
     let invalid_doctype = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
         "<!doctype-alt html>".to_owned(),
     )]);

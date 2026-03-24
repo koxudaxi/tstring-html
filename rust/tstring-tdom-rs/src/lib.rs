@@ -345,10 +345,11 @@ impl Parser {
         }
 
         let trimmed = text.trim();
-        let after_doctype = if let Some(value) = trimmed.strip_prefix("DOCTYPE ") {
-            value
-        } else if let Some(value) = trimmed.strip_prefix("doctype ") {
-            value
+        let after_doctype = if trimmed
+            .get(..8)
+            .is_some_and(|prefix| prefix.eq_ignore_ascii_case("doctype "))
+        {
+            &trimmed[8..]
         } else {
             return Err(parse_error(
                 "tdom.parse.unknown_declaration",
@@ -1316,6 +1317,19 @@ mod tests {
             "<!doctype-alt html>".to_owned(),
         )]);
         assert!(check_template(&unknown).is_err());
+    }
+
+    #[test]
+    fn tdom_accepts_mixed_case_doctypes() {
+        let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            "<!DocType html>".to_owned(),
+        )]);
+
+        assert!(check_template(&template).is_ok());
+        assert_eq!(
+            format_template(&template).expect("format mixed-case doctype"),
+            "<!DOCTYPE html>"
+        );
     }
 
     #[test]
