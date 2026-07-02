@@ -327,9 +327,9 @@ dependencies = [
 
 [[package]]
 name = "tstring-syntax"
-version = "0.2.1"
+version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ad566997891426a640b07af2330b9c08ad04e918f905880885d78a21304d9ee"
+checksum = "2e6021e5e8f36304512dedeb70fce2c8f75a37eb6d823d1747b02e31c5fadd75"
 dependencies = [
  "num-bigint",
 ]

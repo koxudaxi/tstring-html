@@ -20,5 +20,5 @@ version = "0.1.5"
 
 [workspace.dependencies]
 pyo3 = "0.27.1"
-tstring-syntax = { version = "=0.2.1" }
+tstring-syntax = { version = "=0.2.2" }
 unicode-width = "0.2.2"
