@@ -6,6 +6,16 @@ All notable changes to this project are documented in this file.
 **Full Changelog**: https://github.com/koxudaxi/tstring-html/commits/0.1.0
 
 ---
+## [0.1.10](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.10) - 2026-07-02
+
+## What's Changed
+* Bump tstring-syntax to 0.2.2 by @koxudaxi in https://github.com/koxudaxi/tstring-html/pull/12
+
+
+**Full Changelog**: https://github.com/koxudaxi/tstring-html/compare/0.1.9...0.1.10
+
+---
+
 ## [0.1.9](https://github.com/koxudaxi/tstring-html/releases/tag/0.1.9) - 2026-03-24
 
 ## What's Changed
