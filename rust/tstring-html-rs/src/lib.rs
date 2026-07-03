@@ -1212,37 +1212,48 @@ fn apply_spread_attribute(
     match value_for_interpolation(context, &attribute.interpolation)? {
         RuntimeValue::Attributes(entries) => {
             for (name, value) in entries {
-                if name == "class" {
-                    normalized.saw_class = true;
-                    if !normalized.order.iter().any(|entry| entry == "class") {
-                        normalized.order.push("class".to_string());
-                    }
-                    normalized
-                        .class_values
-                        .extend(normalize_class_value(&value)?);
-                    continue;
+                if !is_valid_html_attribute_name(&name) {
+                    return Err(runtime_error(
+                        "html.runtime.spread_name",
+                        format!(
+                            "Spread attribute name {name:?} is not a valid HTML attribute name."
+                        ),
+                        attribute.span.clone(),
+                    ));
                 }
-                match value {
-                    RuntimeValue::Null | RuntimeValue::Bool(false) => {
-                        normalized.attrs.remove(name.as_str());
-                    }
-                    RuntimeValue::Bool(true) => {
-                        if !normalized.order.iter().any(|entry| entry == name) {
-                            normalized.order.push(name.clone());
+
+                match name.as_str() {
+                    "class" => {
+                        normalized.saw_class = true;
+                        if !normalized.order.iter().any(|entry| entry == "class") {
+                            normalized.order.push("class".to_string());
                         }
-                        normalized.attrs.insert(name.clone(), None);
+                        normalized
+                            .class_values
+                            .extend(normalize_class_value(&value)?);
                     }
-                    other => {
-                        if !normalized.order.iter().any(|entry| entry == name) {
-                            normalized.order.push(name.clone());
+                    _ => match value {
+                        RuntimeValue::Null | RuntimeValue::Bool(false) => {
+                            normalized.attrs.remove(name.as_str());
                         }
-                        normalized.attrs.insert(
-                            name.clone(),
-                            Some(escape_html_attribute(&stringify_runtime_value_impl(
-                                &other,
-                            )?)),
-                        );
-                    }
+                        RuntimeValue::Bool(true) => {
+                            if !normalized.order.iter().any(|entry| entry == name) {
+                                normalized.order.push(name.clone());
+                            }
+                            normalized.attrs.insert(name.clone(), None);
+                        }
+                        other => {
+                            if !normalized.order.iter().any(|entry| entry == name) {
+                                normalized.order.push(name.clone());
+                            }
+                            normalized.attrs.insert(
+                                name.clone(),
+                                Some(escape_html_attribute(&stringify_runtime_value_impl(
+                                    &other,
+                                )?)),
+                            );
+                        }
+                    },
                 }
             }
             Ok(())
@@ -1603,6 +1614,14 @@ fn is_name_char(value: char, is_start: bool) -> bool {
     } else {
         value.is_ascii_alphanumeric() || matches!(value, '_' | '-' | ':' | '.')
     }
+}
+
+pub fn is_valid_html_attribute_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    is_name_char(first, true) && chars.all(|ch| is_name_char(ch, false))
 }
 
 fn parse_error(

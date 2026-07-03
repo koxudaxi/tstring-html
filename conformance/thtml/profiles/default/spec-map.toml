@@ -78,6 +78,14 @@ execution_layer = "python"
 note = "HTML elements inside T-HTML follow the same attr/class/spread rules as HTML."
 
 [[cases]]
+case_id = "html-element-spread-invalid-attribute-name-error"
+spec_ref = "v1.thtml.html-element-spread-name"
+operation = "render_html"
+expected_error = "TemplateSemanticError"
+execution_layer = "python"
+note = "HTML elements in T-HTML reject unsafe spread attribute names through the HTML backend."
+
+[[cases]]
 case_id = "component-prop-html-names"
 spec_ref = "v1.thtml.component-prop-html-names"
 operation = "render_html"
@@ -92,6 +100,14 @@ operation = "render_html"
 expected_error = "TemplateRuntimeError"
 execution_layer = "python"
 note = "Non-mapping component spread values are rejected."
+
+[[cases]]
+case_id = "component-spread-invalid-attribute-name-error"
+spec_ref = "v1.thtml.component-spread-name"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "Component spread props reject unsafe HTML-facing attribute names before invocation."
 
 [[cases]]
 case_id = "children-raw-html"
@@ -300,6 +316,14 @@ operation = "render_html"
 expected = "<title>&lt;safe&gt;</title>"
 execution_layer = "both"
 note = "Interpolations in <title> are allowed in T-HTML, but values are escaped as text."
+
+[[cases]]
+case_id = "comment-and-doctype"
+spec_ref = "v1.thtml.comments-doctype"
+operation = "render_html"
+expected = "<!DOCTYPE html><!--x--><div>ok</div>"
+execution_layer = "python"
+note = "T-HTML renders doctypes with the same value semantics as the HTML backend."
 
 [[cases]]
 case_id = "raw-text-textarea-rejected"

@@ -614,6 +614,11 @@ fn render_thtml_node(
                         };
                         if let RuntimeValue::Attributes(entries) = value {
                             for (key, value) in entries {
+                                if !tstring_html::is_valid_html_attribute_name(key) {
+                                    return Err(runtime_error_to_py(format!(
+                                        "Spread attribute name {key:?} is not a valid HTML attribute name."
+                                    )));
+                                }
                                 kwargs.set_item(key, python_from_runtime_value(py, value)?)?;
                             }
                         } else {
@@ -695,7 +700,7 @@ fn render_thtml_node(
             out.push_str("-->");
         }
         Node::Doctype(doctype) => {
-            out.push_str("<!DOCTYPE ");
+            out.push_str("<!");
             out.push_str(&doctype.value);
             out.push('>');
         }
