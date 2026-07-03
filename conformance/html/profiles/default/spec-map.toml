@@ -118,6 +118,14 @@ execution_layer = "both"
 note = "Non-mapping spread values are rejected."
 
 [[cases]]
+case_id = "spread-invalid-attribute-name-error"
+spec_ref = "v1.html.spread-name"
+operation = "render_html"
+expected_error = "TemplateSemanticError"
+execution_layer = "both"
+note = "Spread attribute names must use the renderer's HTML attribute name grammar."
+
+[[cases]]
 case_id = "fragment-children"
 spec_ref = "v1.html.fragment-children"
 operation = "render_html"

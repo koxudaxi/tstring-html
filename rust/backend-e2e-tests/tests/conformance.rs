@@ -323,6 +323,27 @@ fn html_manifest_cases_match_rust_backend() {
                 );
                 assert!(err.message.contains("mapping-like"));
             }
+            "spread-invalid-attribute-name-error" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<div ".into()),
+                    interpolation(0, "attrs", "{attrs}"),
+                    TemplateSegment::StaticText("></div>".into()),
+                ]);
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let err = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![RuntimeValue::Attributes(vec![(
+                        "x onmouseover=alert(1)".into(),
+                        RuntimeValue::String("y".into()),
+                    )])]),
+                )
+                .unwrap_err();
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
+                assert!(err.message.contains("attribute name"));
+            }
             "fragment-children" => {
                 let input = TemplateInput::from_segments(vec![
                     TemplateSegment::StaticText("<div>".into()),

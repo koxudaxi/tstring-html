@@ -250,6 +250,8 @@ def _render_case(case_id: str) -> str:
             return html(
                 t'<div class="base {spread_classes} {tail}" {attrs}>content</div>'
             )
+        case "comment-and-doctype":
+            return render_html(t"<!DOCTYPE html><!--x--><div>ok</div>")
         case "component-prop-html-names":
             label = "Save"
             return html(
@@ -411,7 +413,7 @@ def _assert_error(case_id: str, expected_error: str) -> None:
         "TemplateSemanticError": TemplateSemanticError,
     }[expected_error]
 
-    with pytest.raises(error_type):
+    with pytest.raises(error_type) as exc_info:
         match case_id:
             case "missing-component":
                 label = "Save"
@@ -422,6 +424,12 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "component-spread-non-mapping":
                 props = 123
                 html(t"<Button {props} />", globals={"Button": Button}, locals={})
+            case "component-spread-invalid-attribute-name-error":
+                props = {"x onmouseover=alert(1)": "y"}
+                html(t"<Button {props} />", globals={"Button": Button}, locals={})
+            case "html-element-spread-invalid-attribute-name-error":
+                attrs = {"x onmouseover=alert(1)": "y"}
+                html(t"<div {attrs}></div>")
             case "raw-text-script-rejected":
                 script = "alert('x')"
                 check_template(t"<script>{script}</script>")
@@ -442,6 +450,9 @@ def _assert_error(case_id: str, expected_error: str) -> None:
                 check_template(t"<Button")
             case _:
                 raise AssertionError(f"Unhandled T-HTML error case: {case_id}")
+
+    if case_id.endswith("spread-invalid-attribute-name-error"):
+        assert "attribute name" in (message := str(exc_info.value).lower()), message
 
 
 @pytest.mark.parametrize("case", THTML_CASES, ids=lambda case: case["case_id"])

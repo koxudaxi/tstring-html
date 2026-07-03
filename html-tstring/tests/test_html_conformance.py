@@ -123,7 +123,7 @@ def _assert_error(case_id: str, expected_error: str) -> None:
         "TemplateSemanticError": TemplateSemanticError,
     }[expected_error]
 
-    with pytest.raises(error_type):
+    with pytest.raises(error_type) as exc_info:
         match case_id:
             case "component-rejected":
                 check_template(t"<Button />")
@@ -146,11 +146,17 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "spread-non-mapping-error":
                 attrs = 1
                 render_html(t"<div {attrs}></div>")
+            case "spread-invalid-attribute-name-error":
+                attrs = {"x onmouseover=alert(1)": "y"}
+                render_html(t"<div {attrs}></div>")
             case "class-bool-rejected":
                 value = True
                 render_html(t'<button class="{value}"></button>')
             case _:
                 raise AssertionError(f"Unhandled HTML error case: {case_id}")
+
+    if case_id == "spread-invalid-attribute-name-error":
+        assert "attribute name" in (message := str(exc_info.value).lower()), message
 
 
 @pytest.mark.parametrize("case", HTML_CASES, ids=lambda case: case["case_id"])
