@@ -310,7 +310,7 @@ fn html_formatter_normalizes_self_closing_and_attribute_quotes() {
 
     assert_eq!(
         backend_html::format_template(&template).expect("expected html format success"),
-        "<div hidden title=\"say &quot;hi&quot;\"></div><img src=\"test\" /><section></section>"
+        "<div hidden title='say \"hi\"'></div><img src=\"test\" /><section></section>"
     );
 }
 

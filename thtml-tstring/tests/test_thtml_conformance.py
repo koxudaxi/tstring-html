@@ -28,10 +28,9 @@ def load_cases() -> list[dict[str, str]]:
     profile_data = tomllib.loads(
         (repo_root / "conformance" / "thtml" / "profiles.toml").read_text()
     )
+    profile = profile_data["profiles"][profile_data["default_profile"]]
     manifest = tomllib.loads(
-        (
-            repo_root / "conformance" / "thtml" / profile_data["manifest_path"]
-        ).read_text()
+        (repo_root / "conformance" / "thtml" / profile["manifest_path"]).read_text()
     )
     return manifest["cases"]
 
@@ -250,6 +249,10 @@ def _render_case(case_id: str) -> str:
             return html(
                 t'<div class="base {spread_classes} {tail}" {attrs}>content</div>'
             )
+        case "conversion-and-format-applied":
+            value = "<x>"
+            amount = 3.14159
+            return render_html(t"<div>{value!r} {amount:.2f}</div>")
         case "comment-and-doctype":
             return render_html(t"<!DOCTYPE html><!--x--><div>ok</div>")
         case "component-prop-html-names":
@@ -430,6 +433,15 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "html-element-spread-invalid-attribute-name-error":
                 attrs = {"x onmouseover=alert(1)": "y"}
                 html(t"<div {attrs}></div>")
+            case "html-element-dangerous-url-rejected":
+                href = "javascript:alert(1)"
+                html(t'<a href="{href}">x</a>')
+            case "raw-template-child-rejected":
+                child = t"<span>x</span>"
+                html(t"<div>{child}</div>")
+            case "bytes-child-rejected":
+                value = b"AB"
+                html(t"<div>{value}</div>")
             case "raw-text-script-rejected":
                 script = "alert('x')"
                 check_template(t"<script>{script}</script>")

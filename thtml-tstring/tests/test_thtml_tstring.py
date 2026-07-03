@@ -266,6 +266,32 @@ def test_render_html_with_explicit_scope_and_helpers() -> None:
     )
 
 
+def test_render_thtml_applies_conversion_and_format_spec() -> None:
+    value = "<x>"
+    amount = 3.14159
+    assert render_html(t"<div>{value!r} {amount:.2f}</div>") == (
+        "<div>'&lt;x&gt;' 3.14</div>"
+    )
+
+    compiled = compile_template(t"<div>{value!s} {amount:.1f}</div>")
+    assert compiled.render(["<y>", 2.5]) == "<div>&lt;y&gt; 2.5</div>"
+
+    raw = RawHtml("<b>x</b>")
+    with pytest.raises(TemplateRuntimeError, match="structured value"):
+        render_html(t"<div>{raw!r}</div>")
+
+
+def test_render_thtml_rejects_raw_template_binary_and_unsafe_url_values() -> None:
+    child = t"<span>x</span>"
+    for value in [child, b"AB", bytearray(b"CD")]:
+        with pytest.raises(TemplateRuntimeError, match="Template values|bytes"):
+            render_html(t"<div>{value}</div>")
+
+    href = "java\n script:alert(1)"
+    with pytest.raises(TemplateSemanticError, match="unsafe"):
+        render_html(t'<a href="{href}">x</a>')
+
+
 def test_render_thtml_component_lookup_failure_and_type_error() -> None:
     label = "Save"
     try:

@@ -3,6 +3,7 @@ from html_tstring import (
     Fragment,
     RawHtml,
     Renderable,
+    TemplateRuntimeError,
     TemplateSemanticError,
     check_template,
     compile_template,
@@ -131,6 +132,63 @@ def test_render_html_boolean_and_quoted_attribute_values() -> None:
     assert render_html(t'<div title="{title}"></div>') == (
         '<div title="safe &amp; sound"></div>'
     )
+
+    entity_like = "safe &amp; sound"
+    assert render_html(t'<div title="{entity_like}"></div>') == (
+        '<div title="safe &amp;amp; sound"></div>'
+    )
+
+
+def test_render_html_rejects_unsafe_url_schemes() -> None:
+    for href in [
+        "javascript:alert(1)",
+        "java\n script:alert(1)",
+        "DATA:text/html,<svg></svg>",
+        "vbscript:msgbox(1)",
+    ]:
+        try:
+            render_html(t'<a href="{href}">x</a>')
+        except TemplateSemanticError as exc:
+            assert "unsafe" in str(exc).lower()
+        else:
+            raise AssertionError("expected unsafe URL scheme rejection")
+
+    attrs = {"xlink:href": "javascript:alert(1)"}
+    try:
+        render_html(t"<svg {attrs}></svg>")
+    except TemplateSemanticError as exc:
+        assert "unsafe" in str(exc).lower()
+    else:
+        raise AssertionError("expected unsafe spread URL rejection")
+
+
+def test_render_html_applies_conversion_and_format_spec() -> None:
+    value = "<x>"
+    amount = 3.14159
+
+    assert render_html(t"<p>{value!r} {amount:.2f}</p>") == ("<p>'&lt;x&gt;' 3.14</p>")
+
+    compiled = compile_template(t"<p>{value!s} {amount:.1f}</p>")
+    assert compiled.render(["<y>", 2.5]) == "<p>&lt;y&gt; 2.5</p>"
+
+    raw = RawHtml("<b>x</b>")
+    try:
+        render_html(t"<div>{raw!r}</div>")
+    except TemplateRuntimeError as exc:
+        assert "structured value" in str(exc)
+    else:
+        raise AssertionError("expected structured conversion rejection")
+
+
+def test_render_html_rejects_raw_template_and_binary_values() -> None:
+    child = t"<span>x</span>"
+    for value in [child, b"AB", bytearray(b"CD")]:
+        try:
+            render_html(t"<div>{value}</div>")
+        except TemplateRuntimeError as exc:
+            assert "Template values" in str(exc) or "bytes" in str(exc)
+        else:
+            raise AssertionError("expected runtime rejection")
 
 
 def test_render_html_rejects_unquoted_dynamic_attrs_and_components() -> None:

@@ -159,14 +159,15 @@ fn build_attribute(attribute: &Attribute) -> Doc {
         return Doc::text(attribute.name.clone());
     };
 
-    let mut parts = vec![Doc::text(format!("{}=\"", attribute.name))];
+    let quote = attribute_quote(value);
+    let mut parts = vec![Doc::text(format!("{}={quote}", attribute.name))];
     for part in &value.parts {
         parts.push(match part {
-            ValuePart::Text(text) => Doc::text(escape_attribute_text(text)),
+            ValuePart::Text(text) => Doc::text(escape_attribute_text(text, quote)),
             ValuePart::Interpolation(interpolation) => build_interpolation(interpolation),
         });
     }
-    parts.push(Doc::text("\""));
+    parts.push(Doc::text(quote.to_string()));
     Doc::concat(parts)
 }
 
@@ -218,8 +219,25 @@ fn is_mixed_content(children: &[Node]) -> bool {
     })
 }
 
-fn escape_attribute_text(text: &str) -> String {
-    text.replace('"', "&quot;")
+fn attribute_quote(value: &crate::AttributeValue) -> char {
+    let mut has_single = false;
+    let mut has_double = false;
+    for part in &value.parts {
+        let ValuePart::Text(text) = part else {
+            continue;
+        };
+        has_single |= text.contains('\'');
+        has_double |= text.contains('"');
+    }
+    if has_double && !has_single { '\'' } else { '"' }
+}
+
+fn escape_attribute_text(text: &str, quote: char) -> String {
+    match quote {
+        '"' => text.replace('"', "&quot;"),
+        '\'' => text.replace('\'', "&#39;"),
+        _ => text.to_string(),
+    }
 }
 
 fn is_void_html_tag(name: &str) -> bool {
