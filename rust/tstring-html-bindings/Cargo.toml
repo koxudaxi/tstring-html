@@ -18,8 +18,8 @@ extension-module = ["pyo3/extension-module"]
 
 [dependencies]
 pyo3 = { workspace = true, features = ["abi3-py314"] }
-tstring-html = { version = "0.1.5", path = "../tstring-html-rs" }
-tstring-thtml = { version = "0.1.5", path = "../tstring-thtml-rs" }
+tstring-html = { version = "0.1.10", path = "../tstring-html-rs" }
+tstring-thtml = { version = "0.1.10", path = "../tstring-thtml-rs" }
 tstring-syntax.workspace = true
 
 [dev-dependencies]
