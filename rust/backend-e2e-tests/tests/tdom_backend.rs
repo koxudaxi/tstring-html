@@ -187,7 +187,7 @@ fn tdom_backend_normalizes_void_tags_and_preserves_raw_source() {
 }
 
 #[test]
-fn tdom_backend_rejects_mismatched_component_end_tags_when_statically_evident() {
+fn tdom_backend_accepts_different_component_end_expressions_for_runtime_validation() {
     let template = TemplateInput::from_segments(vec![
         TemplateSegment::StaticText("<".to_owned()),
         interpolation(0, "Button", "{Button}"),
@@ -196,11 +196,9 @@ fn tdom_backend_rejects_mismatched_component_end_tags_when_statically_evident() 
         TemplateSegment::StaticText(">".to_owned()),
     ]);
 
-    let error = backend_tdom::check_template(&template).expect_err("must reject mismatch");
-    assert_eq!(error.kind, ErrorKind::Parse);
-    assert!(
-        error
-            .message
-            .contains("Mismatched component start and end callables")
+    backend_tdom::check_template(&template).expect("mismatch is runtime-validated");
+    assert_eq!(
+        backend_tdom::format_template(&template).expect("format tdom component"),
+        "<{Button}></{Other}>"
     );
 }

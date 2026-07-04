@@ -914,7 +914,7 @@ fn tdom_manifest_cases_match_rust_seam() {
                 let formatted = backend_tdom::format_template(&input).unwrap();
                 assert_eq!(formatted, case.expected.as_deref().unwrap());
             }
-            "mismatched-component-rejected" => {
+            "component-close-expression-runtime-validated" => {
                 let input = TemplateInput::from_segments(vec![
                     TemplateSegment::StaticText("<".into()),
                     interpolation(0, "Button", "{Button}"),
@@ -922,12 +922,8 @@ fn tdom_manifest_cases_match_rust_seam() {
                     interpolation(1, "Other", "{Other}"),
                     TemplateSegment::StaticText(">".into()),
                 ]);
-                let err = backend_tdom::check_template(&input).unwrap_err();
-                assert_eq!(case.expected_error.as_deref(), Some("TemplateParseError"));
-                assert!(
-                    err.message
-                        .contains("Mismatched component start and end callables")
-                );
+                let formatted = backend_tdom::format_template(&input).unwrap();
+                assert_eq!(formatted, case.expected.as_deref().unwrap());
             }
             other => panic!("unhandled TDOM rust conformance case {other}"),
         }

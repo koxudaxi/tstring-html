@@ -446,17 +446,7 @@ impl Parser {
                 ),
                 start,
             )),
-            (OpenTag::Component(open), TagName::Component(close)) => {
-                if interpolation_matches(open, &close) {
-                    Ok(Some(close))
-                } else {
-                    Err(parse_error(
-                        "tdom.parse.mismatched_component_tag",
-                        "Mismatched component start and end callables.",
-                        start,
-                    ))
-                }
-            }
+            (OpenTag::Component(_), TagName::Component(close)) => Ok(Some(close)),
         }
     }
 
@@ -818,6 +808,15 @@ pub fn format_template_with_options(
     Ok(format_document(&document, options))
 }
 
+pub fn format_template_as_svg_with_options(
+    template: &TemplateInput,
+    options: &FormatOptions,
+) -> BackendResult<String> {
+    require_raw_source(template)?;
+    let document = prepare_template(template)?;
+    Ok(format_document_as_svg(&document, options))
+}
+
 pub fn prepare_template(template: &TemplateInput) -> BackendResult<Document> {
     let document = parse_template(template)?;
     validate_document(&document)?;
@@ -888,8 +887,26 @@ fn require_raw_source(template: &TemplateInput) -> BackendResult<()> {
     Ok(())
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Namespace {
+    Html,
+    Svg,
+}
+
 fn format_document(document: &Document, options: &FormatOptions) -> String {
-    let doc = build_nodes(&document.children, options);
+    format_document_with_namespace(document, options, Namespace::Html)
+}
+
+fn format_document_as_svg(document: &Document, options: &FormatOptions) -> String {
+    format_document_with_namespace(document, options, Namespace::Svg)
+}
+
+fn format_document_with_namespace(
+    document: &Document,
+    options: &FormatOptions,
+    namespace: Namespace,
+) -> String {
+    let doc = build_nodes(&document.children, options, namespace);
     render(
         &doc,
         RenderOptions {
@@ -899,14 +916,19 @@ fn format_document(document: &Document, options: &FormatOptions) -> String {
     )
 }
 
-fn build_nodes(nodes: &[Node], options: &FormatOptions) -> Doc {
-    Doc::concat(nodes.iter().map(|node| build_node(node, options)).collect())
+fn build_nodes(nodes: &[Node], options: &FormatOptions, namespace: Namespace) -> Doc {
+    Doc::concat(
+        nodes
+            .iter()
+            .map(|node| build_node(node, options, namespace))
+            .collect(),
+    )
 }
 
-fn build_node(node: &Node, options: &FormatOptions) -> Doc {
+fn build_node(node: &Node, options: &FormatOptions, namespace: Namespace) -> Doc {
     match node {
-        Node::Fragment(fragment) => build_nodes(&fragment.children, options),
-        Node::Element(element) => build_element(element, options),
+        Node::Fragment(fragment) => build_nodes(&fragment.children, options, namespace),
+        Node::Element(element) => build_element(element, options, namespace),
         Node::ComponentTag(component) => build_component(component, options),
         Node::Text(text) => Doc::text(text.value.clone()),
         Node::Interpolation(interpolation) => build_interpolation(interpolation),
@@ -916,26 +938,28 @@ fn build_node(node: &Node, options: &FormatOptions) -> Doc {
     }
 }
 
-fn build_element(element: &ElementNode, options: &FormatOptions) -> Doc {
-    let is_void = is_void_html_tag(&element.name) && element.children.is_empty();
-    let closing = if is_void || element.self_closing {
-        " />"
-    } else {
-        ">"
-    };
+fn build_element(element: &ElementNode, options: &FormatOptions, namespace: Namespace) -> Doc {
+    let element_namespace = element_namespace(namespace, &element.name);
+    let output_name = literal_tag_name(&element.name, element_namespace);
+    let is_void = element_namespace == Namespace::Html
+        && is_void_html_tag(&element.name)
+        && element.children.is_empty();
+    let closing = if is_void { " />" } else { ">" };
     let start = build_start_tag(
-        Doc::text(element.name.clone()),
+        Doc::text(output_name.clone()),
         &element.attributes,
         closing,
+        element_namespace,
     );
-    if is_void || element.self_closing {
+    if is_void {
         return start;
     }
     build_standard_element(
         start,
-        close_literal_tag(&element.name),
+        close_literal_tag(&output_name),
         &element.children,
         options,
+        child_namespace(element_namespace, &element.name),
     )
 }
 
@@ -949,12 +973,13 @@ fn build_component(component: &ComponentTagNode, options: &FormatOptions) -> Doc
         build_interpolation(&component.start_tag),
         &component.attributes,
         closing,
+        Namespace::Html,
     );
     if component.self_closing && component.children.is_empty() {
         return start;
     }
     let close = close_component_tag(component.end_tag.as_ref().unwrap_or(&component.start_tag));
-    build_standard_element(start, close, &component.children, options)
+    build_standard_element(start, close, &component.children, options, Namespace::Html)
 }
 
 fn build_raw_text_element(element: &RawTextElementNode, options: &FormatOptions) -> Doc {
@@ -963,11 +988,12 @@ fn build_raw_text_element(element: &RawTextElementNode, options: &FormatOptions)
         Doc::text(element.name.clone()),
         &element.attributes,
         closing,
+        Namespace::Html,
     );
     if element.self_closing {
         return start;
     }
-    let children = build_nodes(&element.children, options);
+    let children = build_nodes(&element.children, options, Namespace::Html);
     Doc::concat(vec![start, children, close_literal_tag(&element.name)])
 }
 
@@ -976,13 +1002,18 @@ fn build_standard_element(
     close: Doc,
     children: &[Node],
     options: &FormatOptions,
+    namespace: Namespace,
 ) -> Doc {
     if children.is_empty() {
         return Doc::concat(vec![start, close]);
     }
 
     if is_mixed_content(children) {
-        return Doc::concat(vec![start, build_nodes(children, options), close]);
+        return Doc::concat(vec![
+            start,
+            build_nodes(children, options, namespace),
+            close,
+        ]);
     }
 
     let significant_children = strip_padding_whitespace(children);
@@ -990,7 +1021,7 @@ fn build_standard_element(
         return Doc::concat(vec![start, close]);
     }
 
-    let child_doc = build_nodes(&significant_children, options);
+    let child_doc = build_nodes(&significant_children, options, namespace);
     let inline_doc = Doc::concat(vec![start.clone(), child_doc.clone(), close.clone()]);
     if flat_width(&inline_doc).is_some_and(|width| width <= options.line_length.max(1))
         && !has_forced_break(&child_doc)
@@ -1001,7 +1032,7 @@ fn build_standard_element(
     let broken_children = join_with_hard_lines(
         significant_children
             .iter()
-            .map(|child| build_node(child, options))
+            .map(|child| build_node(child, options, namespace))
             .collect(),
     );
 
@@ -1013,12 +1044,17 @@ fn build_standard_element(
     ])
 }
 
-fn build_start_tag(name: Doc, attributes: &[AttributeLike], closing: &str) -> Doc {
+fn build_start_tag(
+    name: Doc,
+    attributes: &[AttributeLike],
+    closing: &str,
+    namespace: Namespace,
+) -> Doc {
     let mut parts = vec![Doc::text("<".to_string()), name];
     if !attributes.is_empty() {
         let attr_lines = attributes
             .iter()
-            .flat_map(|attribute| [Doc::line(), build_attribute_like(attribute)])
+            .flat_map(|attribute| [Doc::line(), build_attribute_like(attribute, namespace)])
             .collect();
         parts.push(Doc::concat(attr_lines).indent());
         parts.push(Doc::soft_line());
@@ -1027,25 +1063,25 @@ fn build_start_tag(name: Doc, attributes: &[AttributeLike], closing: &str) -> Do
     Doc::concat(parts).group()
 }
 
-fn build_attribute_like(attribute: &AttributeLike) -> Doc {
+fn build_attribute_like(attribute: &AttributeLike, namespace: Namespace) -> Doc {
     match attribute {
         AttributeLike::LiteralAttribute(attribute) => {
+            let name = attribute_name(&attribute.name, namespace);
             if let Some(value) = &attribute.value {
-                Doc::text(format!(
-                    "{}=\"{}\"",
-                    attribute.name,
-                    escape_attribute_text(value)
-                ))
+                Doc::text(format!("{}=\"{}\"", name, escape_attribute_text(value)))
             } else {
-                Doc::text(attribute.name.clone())
+                Doc::text(name)
             }
         }
         AttributeLike::InterpolatedAttribute(attribute) => Doc::concat(vec![
-            Doc::text(format!("{}=", attribute.name)),
+            Doc::text(format!("{}=", attribute_name(&attribute.name, namespace))),
             build_interpolation(&attribute.interpolation),
         ]),
         AttributeLike::TemplatedAttribute(attribute) => {
-            let mut parts = vec![Doc::text(format!("{}=\"", attribute.name))];
+            let mut parts = vec![Doc::text(format!(
+                "{}=\"",
+                attribute_name(&attribute.name, namespace)
+            ))];
             for part in &attribute.parts {
                 parts.push(match part {
                     ValuePart::Text(text) => Doc::text(escape_attribute_text(text)),
@@ -1056,6 +1092,145 @@ fn build_attribute_like(attribute: &AttributeLike) -> Doc {
             Doc::concat(parts)
         }
         AttributeLike::SpreadAttribute(attribute) => build_interpolation(&attribute.interpolation),
+    }
+}
+
+fn element_namespace(namespace: Namespace, name: &str) -> Namespace {
+    if name == "svg" {
+        Namespace::Svg
+    } else {
+        namespace
+    }
+}
+
+fn child_namespace(namespace: Namespace, name: &str) -> Namespace {
+    if namespace == Namespace::Svg && name == "foreignobject" {
+        Namespace::Html
+    } else {
+        namespace
+    }
+}
+
+fn literal_tag_name(name: &str, namespace: Namespace) -> String {
+    if namespace == Namespace::Svg {
+        svg_tag_name(name).to_string()
+    } else {
+        name.to_string()
+    }
+}
+
+fn attribute_name(name: &str, namespace: Namespace) -> String {
+    if namespace == Namespace::Svg {
+        svg_attribute_name(name).to_string()
+    } else {
+        name.to_string()
+    }
+}
+
+fn svg_tag_name(name: &str) -> &str {
+    match name {
+        "altglyph" => "altGlyph",
+        "altglyphdef" => "altGlyphDef",
+        "altglyphitem" => "altGlyphItem",
+        "animatecolor" => "animateColor",
+        "animatemotion" => "animateMotion",
+        "animatetransform" => "animateTransform",
+        "clippath" => "clipPath",
+        "feblend" => "feBlend",
+        "fecolormatrix" => "feColorMatrix",
+        "fecomponenttransfer" => "feComponentTransfer",
+        "fecomposite" => "feComposite",
+        "feconvolvematrix" => "feConvolveMatrix",
+        "fediffuselighting" => "feDiffuseLighting",
+        "fedisplacementmap" => "feDisplacementMap",
+        "fedistantlight" => "feDistantLight",
+        "fedropshadow" => "feDropShadow",
+        "feflood" => "feFlood",
+        "fefunca" => "feFuncA",
+        "fefuncb" => "feFuncB",
+        "fefuncg" => "feFuncG",
+        "fefuncr" => "feFuncR",
+        "fegaussianblur" => "feGaussianBlur",
+        "feimage" => "feImage",
+        "femerge" => "feMerge",
+        "femergenode" => "feMergeNode",
+        "femorphology" => "feMorphology",
+        "feoffset" => "feOffset",
+        "fepointlight" => "fePointLight",
+        "fespecularlighting" => "feSpecularLighting",
+        "fespotlight" => "feSpotLight",
+        "fetile" => "feTile",
+        "feturbulence" => "feTurbulence",
+        "foreignobject" => "foreignObject",
+        "glyphref" => "glyphRef",
+        "lineargradient" => "linearGradient",
+        "radialgradient" => "radialGradient",
+        "textpath" => "textPath",
+        _ => name,
+    }
+}
+
+fn svg_attribute_name(name: &str) -> &str {
+    match name {
+        "attributename" => "attributeName",
+        "attributetype" => "attributeType",
+        "basefrequency" => "baseFrequency",
+        "baseprofile" => "baseProfile",
+        "calcmode" => "calcMode",
+        "clippathunits" => "clipPathUnits",
+        "diffuseconstant" => "diffuseConstant",
+        "edgemode" => "edgeMode",
+        "filterunits" => "filterUnits",
+        "glyphref" => "glyphRef",
+        "gradienttransform" => "gradientTransform",
+        "gradientunits" => "gradientUnits",
+        "kernelmatrix" => "kernelMatrix",
+        "kernelunitlength" => "kernelUnitLength",
+        "keypoints" => "keyPoints",
+        "keysplines" => "keySplines",
+        "keytimes" => "keyTimes",
+        "lengthadjust" => "lengthAdjust",
+        "limitingconeangle" => "limitingConeAngle",
+        "markerheight" => "markerHeight",
+        "markerunits" => "markerUnits",
+        "markerwidth" => "markerWidth",
+        "maskcontentunits" => "maskContentUnits",
+        "maskunits" => "maskUnits",
+        "numoctaves" => "numOctaves",
+        "pathlength" => "pathLength",
+        "patterncontentunits" => "patternContentUnits",
+        "patterntransform" => "patternTransform",
+        "patternunits" => "patternUnits",
+        "pointsatx" => "pointsAtX",
+        "pointsaty" => "pointsAtY",
+        "pointsatz" => "pointsAtZ",
+        "preservealpha" => "preserveAlpha",
+        "preserveaspectratio" => "preserveAspectRatio",
+        "primitiveunits" => "primitiveUnits",
+        "refx" => "refX",
+        "refy" => "refY",
+        "repeatcount" => "repeatCount",
+        "repeatdur" => "repeatDur",
+        "requiredextensions" => "requiredExtensions",
+        "requiredfeatures" => "requiredFeatures",
+        "specularconstant" => "specularConstant",
+        "specularexponent" => "specularExponent",
+        "spreadmethod" => "spreadMethod",
+        "startoffset" => "startOffset",
+        "stddeviation" => "stdDeviation",
+        "stitchtiles" => "stitchTiles",
+        "surfacescale" => "surfaceScale",
+        "systemlanguage" => "systemLanguage",
+        "tablevalues" => "tableValues",
+        "targetx" => "targetX",
+        "targety" => "targetY",
+        "textlength" => "textLength",
+        "viewbox" => "viewBox",
+        "viewtarget" => "viewTarget",
+        "xchannelselector" => "xChannelSelector",
+        "ychannelselector" => "yChannelSelector",
+        "zoomandpan" => "zoomAndPan",
+        _ => name,
     }
 }
 
@@ -1121,10 +1296,6 @@ fn is_mixed_content(children: &[Node]) -> bool {
         Node::Fragment(fragment) => is_mixed_content(&fragment.children),
         _ => false,
     })
-}
-
-fn interpolation_matches(left: &InterpolationNode, right: &InterpolationNode) -> bool {
-    left.raw_source == right.raw_source && left.expression == right.expression
 }
 
 fn is_raw_text_tag(name: &str) -> bool {
@@ -1267,21 +1438,21 @@ mod tests {
     }
 
     #[test]
-    fn tdom_rejects_mismatched_component_tag_pairs() {
+    fn tdom_accepts_different_component_tag_expressions_for_runtime_validation() {
         let template = TemplateInput::from_segments(vec![
             TemplateSegment::StaticText("<".to_owned()),
             interpolation(0, "Card", "{Card}"),
             TemplateSegment::StaticText("></".to_owned()),
-            interpolation(1, "Other", "{Other}"),
+            interpolation(1, "Alias", "{Alias}"),
             TemplateSegment::StaticText(">".to_owned()),
         ]);
 
-        let error = check_template(&template).expect_err("must fail");
-        assert!(
-            error
-                .message
-                .contains("Mismatched component start and end callables")
-        );
+        let document = prepare_template(&template).expect("tdom should parse");
+        let Node::ComponentTag(component) = &document.children[0] else {
+            panic!("expected component tag");
+        };
+        assert_eq!(component.start_tag.expression, "Card");
+        assert_eq!(component.end_tag.as_ref().unwrap().expression, "Alias");
     }
 
     #[test]
@@ -1353,6 +1524,32 @@ mod tests {
         assert_eq!(
             format_template(&template).expect("format raw text"),
             "<title>{title}</title><textarea>{value}</textarea>"
+        );
+    }
+
+    #[test]
+    fn tdom_formats_standalone_svg_context_with_canonical_case() {
+        let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            r#"<clipPath id="mask"><rect viewBox="0 0 10 10" /></clipPath>"#.to_owned(),
+        )]);
+
+        assert_eq!(
+            format_template_as_svg_with_options(&template, &FormatOptions::default())
+                .expect("format svg"),
+            r#"<clipPath id="mask"><rect viewBox="0 0 10 10"></rect></clipPath>"#
+        );
+    }
+
+    #[test]
+    fn tdom_formats_svg_namespace_inside_html() {
+        let template = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            r#"<svg viewBox="0 0 10 10"><linearGradient></linearGradient><foreignObject><clipPath></clipPath></foreignObject></svg>"#
+                .to_owned(),
+        )]);
+
+        assert_eq!(
+            format_template(&template).expect("format html svg"),
+            "<svg viewBox=\"0 0 10 10\">\n  <linearGradient></linearGradient>\n  <foreignObject><clippath></clippath></foreignObject>\n</svg>"
         );
     }
 }
