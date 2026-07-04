@@ -20,7 +20,8 @@ Each `profiles.toml` index is the source of truth for:
 
 - which profiles are supported for that format
 - which profile is the default
-- where each per-profile manifest lives relative to `conformance/<format>`
+- where each per-profile manifest lives under `[profiles.<profile>]`, relative to
+  `conformance/<format>`
 
 ## Current Status
 

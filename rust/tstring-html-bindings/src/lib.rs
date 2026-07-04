@@ -1,7 +1,7 @@
 use pyo3::create_exception;
 use pyo3::exceptions::{PyException, PyTypeError};
 use pyo3::prelude::*;
-use pyo3::types::{PyAny, PyBool, PyDict, PyIterator, PyModule};
+use pyo3::types::{PyAny, PyBool, PyByteArray, PyBytes, PyDict, PyIterator, PyModule};
 use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 use tstring_html::{
@@ -178,12 +178,14 @@ struct PyCompiledThtmlTemplate {
 #[pymethods]
 impl PyCompiledHtmlTemplate {
     fn render(&self, py: Python<'_>, values: Vec<Py<PyAny>>) -> PyResult<String> {
-        let context = runtime_context_from_values(py, &values)?;
+        let context =
+            runtime_context_from_values_for_document(py, &values, self.compiled.document())?;
         render_html_compiled(self.compiled.as_ref(), &context).map_err(backend_error_to_py)
     }
 
     fn render_fragment(&self, py: Python<'_>, values: Vec<Py<PyAny>>) -> PyResult<String> {
-        let context = runtime_context_from_values(py, &values)?;
+        let context =
+            runtime_context_from_values_for_document(py, &values, self.compiled.document())?;
         Ok(
             tstring_html::render_fragment(self.compiled.as_ref(), &context)
                 .map_err(backend_error_to_py)?
@@ -214,7 +216,8 @@ impl PyCompiledThtmlTemplate {
             registry,
             "CompiledThtmlTemplate.render",
         )?;
-        let context = runtime_context_from_values(py, &values)?;
+        let context =
+            runtime_context_from_values_for_document(py, &values, self.compiled.document())?;
         render_thtml_document(
             py,
             self.compiled.document(),
@@ -233,6 +236,20 @@ struct BoundTemplate {
     input: TemplateInput,
     strings: Vec<String>,
     values: Vec<Py<PyAny>>,
+}
+
+#[derive(Clone, Debug)]
+struct InterpolationFormatting {
+    interpolation_index: usize,
+    expression: String,
+    conversion: Option<String>,
+    format_spec: String,
+}
+
+impl InterpolationFormatting {
+    fn needs_formatting(&self) -> bool {
+        self.conversion.is_some() || !self.format_spec.is_empty()
+    }
 }
 
 impl BoundTemplate {
@@ -368,14 +385,22 @@ fn runtime_value_from_py(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<R
     if value.is_none() {
         return Ok(RuntimeValue::Null);
     }
-    if let Ok(marker) = value.getattr("__tstring_renderable__") {
-        if marker.is_truthy()? {
-            let rendered = value.call_method0("render")?;
-            let rendered: String = rendered
-                .extract()
-                .map_err(|_| runtime_error_to_py("Renderable.render() must return a string."))?;
-            return Ok(RuntimeValue::RawHtml(rendered));
-        }
+    if is_template_value(value)? {
+        return Err(runtime_error_to_py(
+            "Template values cannot be rendered directly; wrap them with html() or thtml().",
+        ));
+    }
+    if is_binary_value(value) {
+        return Err(runtime_error_to_py(
+            "bytes and bytearray values cannot be rendered.",
+        ));
+    }
+    if is_renderable_value(value)? {
+        let rendered = value.call_method0("render")?;
+        let rendered: String = rendered
+            .extract()
+            .map_err(|_| runtime_error_to_py("Renderable.render() must return a string."))?;
+        return Ok(RuntimeValue::RawHtml(rendered));
     }
     if let Ok(raw) = value.extract::<bool>() {
         return Ok(RuntimeValue::Bool(raw));
@@ -417,17 +442,232 @@ fn runtime_value_from_py(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<R
 }
 
 fn runtime_context_from_bound(py: Python<'_>, bound: &BoundTemplate) -> PyResult<RuntimeContext> {
-    runtime_context_from_values(py, &bound.values)
+    runtime_context_from_values_with_formatting(
+        py,
+        &bound.values,
+        collect_input_formatting(&bound.input),
+    )
 }
 
-fn runtime_context_from_values(py: Python<'_>, values: &[Py<PyAny>]) -> PyResult<RuntimeContext> {
+fn runtime_context_from_values_for_document(
+    py: Python<'_>,
+    values: &[Py<PyAny>],
+    document: &Document,
+) -> PyResult<RuntimeContext> {
+    runtime_context_from_values_with_formatting(py, values, collect_document_formatting(document))
+}
+
+fn runtime_context_from_values_with_formatting(
+    py: Python<'_>,
+    values: &[Py<PyAny>],
+    formatting: Vec<InterpolationFormatting>,
+) -> PyResult<RuntimeContext> {
+    let mut formatting_by_index = vec![None; values.len()];
+    for item in formatting {
+        if !item.needs_formatting() {
+            continue;
+        }
+        if let Some(slot) = formatting_by_index.get_mut(item.interpolation_index) {
+            if slot.is_none() {
+                *slot = Some(item);
+            }
+        }
+    }
+
     let mut runtime_values = Vec::with_capacity(values.len());
-    for value in values {
-        runtime_values.push(runtime_value_from_py(py, value.bind(py))?);
+    for (index, value) in values.iter().enumerate() {
+        let formatted = match formatting_by_index.get(index).and_then(Option::as_ref) {
+            Some(formatting) => apply_interpolation_formatting(py, value.bind(py), formatting)?,
+            None => value.clone_ref(py),
+        };
+        runtime_values.push(runtime_value_from_py(py, formatted.bind(py))?);
     }
     Ok(RuntimeContext {
         values: runtime_values,
     })
+}
+
+fn collect_input_formatting(input: &TemplateInput) -> Vec<InterpolationFormatting> {
+    input
+        .segments
+        .iter()
+        .filter_map(|segment| match segment {
+            tstring_syntax::TemplateSegment::Interpolation(interpolation) => {
+                Some(formatting_from_template_interpolation(interpolation))
+            }
+            tstring_syntax::TemplateSegment::StaticText(_) => None,
+        })
+        .collect()
+}
+
+fn collect_document_formatting(document: &Document) -> Vec<InterpolationFormatting> {
+    let mut formatting = Vec::new();
+    collect_node_formatting(&document.children, &mut formatting);
+    formatting
+}
+
+fn collect_node_formatting(nodes: &[Node], formatting: &mut Vec<InterpolationFormatting>) {
+    for node in nodes {
+        match node {
+            Node::Fragment(fragment) => collect_node_formatting(&fragment.children, formatting),
+            Node::Element(element) => {
+                collect_attribute_formatting(&element.attributes, formatting);
+                collect_node_formatting(&element.children, formatting);
+            }
+            Node::ComponentTag(component) => {
+                collect_attribute_formatting(&component.attributes, formatting);
+                collect_node_formatting(&component.children, formatting);
+            }
+            Node::RawTextElement(element) => {
+                collect_attribute_formatting(&element.attributes, formatting);
+                collect_node_formatting(&element.children, formatting);
+            }
+            Node::Interpolation(interpolation) => {
+                formatting.push(formatting_from_node_interpolation(interpolation));
+            }
+            Node::Text(_) | Node::Comment(_) | Node::Doctype(_) => {}
+        }
+    }
+}
+
+fn collect_attribute_formatting(
+    attributes: &[AttributeLike],
+    formatting: &mut Vec<InterpolationFormatting>,
+) {
+    for attribute in attributes {
+        match attribute {
+            AttributeLike::Attribute(attribute) => {
+                if let Some(value) = &attribute.value {
+                    for part in &value.parts {
+                        if let tstring_html::ValuePart::Interpolation(interpolation) = part {
+                            formatting.push(formatting_from_node_interpolation(interpolation));
+                        }
+                    }
+                }
+            }
+            AttributeLike::SpreadAttribute(attribute) => {
+                formatting.push(formatting_from_node_interpolation(&attribute.interpolation));
+            }
+        }
+    }
+}
+
+fn formatting_from_template_interpolation(
+    interpolation: &TemplateInterpolation,
+) -> InterpolationFormatting {
+    InterpolationFormatting {
+        interpolation_index: interpolation.interpolation_index,
+        expression: interpolation.expression.clone(),
+        conversion: interpolation.conversion.clone(),
+        format_spec: interpolation.format_spec.clone(),
+    }
+}
+
+fn formatting_from_node_interpolation(
+    interpolation: &tstring_html::InterpolationNode,
+) -> InterpolationFormatting {
+    InterpolationFormatting {
+        interpolation_index: interpolation.interpolation_index,
+        expression: interpolation.expression.clone(),
+        conversion: interpolation.conversion.clone(),
+        format_spec: interpolation.format_spec.clone(),
+    }
+}
+
+fn apply_interpolation_formatting(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    formatting: &InterpolationFormatting,
+) -> PyResult<Py<PyAny>> {
+    if is_structural_format_value(value)? {
+        return Err(runtime_error_to_py(format!(
+            "Interpolation '{}' uses conversion or format_spec on a structured value.",
+            formatting.expression
+        )));
+    }
+
+    let mut current = match formatting.conversion.as_deref() {
+        None => value.clone().unbind(),
+        Some("r") => value
+            .repr()
+            .map_err(|err| formatting_runtime_error("repr", formatting, err))?
+            .unbind()
+            .into_any(),
+        Some("s") => value
+            .str()
+            .map_err(|err| formatting_runtime_error("str", formatting, err))?
+            .unbind()
+            .into_any(),
+        Some("a") => py
+            .import("builtins")?
+            .getattr("ascii")?
+            .call1((value,))
+            .map_err(|err| formatting_runtime_error("ascii", formatting, err))?
+            .unbind(),
+        Some(conversion) => {
+            return Err(runtime_error_to_py(format!(
+                "Unsupported conversion !{conversion} for interpolation '{}'.",
+                formatting.expression
+            )));
+        }
+    };
+
+    if formatting.format_spec.is_empty() {
+        return Ok(current);
+    }
+
+    current = current
+        .bind(py)
+        .call_method1("__format__", (formatting.format_spec.as_str(),))
+        .map_err(|err| formatting_runtime_error("format", formatting, err))?
+        .unbind();
+    Ok(current)
+}
+
+fn formatting_runtime_error(
+    operation: &str,
+    formatting: &InterpolationFormatting,
+    err: PyErr,
+) -> PyErr {
+    runtime_error_to_py(format!(
+        "Failed to apply {operation} for interpolation '{}': {err}",
+        formatting.expression
+    ))
+}
+
+fn is_structural_format_value(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if is_template_value(value)? || is_binary_value(value) || is_renderable_value(value)? {
+        return Ok(true);
+    }
+    if value.extract::<PyRef<'_, RawHtml>>().is_ok()
+        || value.extract::<PyRef<'_, Fragment>>().is_ok()
+        || value.cast::<PyDict>().is_ok()
+    {
+        return Ok(true);
+    }
+    if value.extract::<String>().is_ok() {
+        return Ok(false);
+    }
+    Ok(PyIterator::from_object(value).is_ok())
+}
+
+fn is_renderable_value(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    match value.getattr("__tstring_renderable__") {
+        Ok(marker) => marker.is_truthy(),
+        Err(_) => Ok(false),
+    }
+}
+
+fn is_template_value(value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    if value.get_type().name()? != "Template" {
+        return Ok(false);
+    }
+    let module: String = value.get_type().getattr("__module__")?.extract()?;
+    Ok(module == "string.templatelib")
+}
+
+fn is_binary_value(value: &Bound<'_, PyAny>) -> bool {
+    value.cast::<PyBytes>().is_ok() || value.cast::<PyByteArray>().is_ok()
 }
 
 fn registry_to_scope_dict<'py>(
@@ -716,11 +956,17 @@ fn render_thtml_node(
 fn render_escaped_text_value(value: &RuntimeValue, out: &mut String) -> Result<(), BackendError> {
     match value {
         RuntimeValue::Null => {}
-        RuntimeValue::Bool(value) => out.push_str(&escape_html_text(&value.to_string())),
-        RuntimeValue::Int(value) => out.push_str(&escape_html_text(&value.to_string())),
-        RuntimeValue::Float(value) => out.push_str(&escape_html_text(&value.to_string())),
-        RuntimeValue::String(value) => out.push_str(&escape_html_text(value)),
-        RuntimeValue::RawHtml(value) => out.push_str(&escape_html_text(value)),
+        RuntimeValue::Bool(value) => {
+            out.push_str(&tstring_html::escape_html_text(&value.to_string()))
+        }
+        RuntimeValue::Int(value) => {
+            out.push_str(&tstring_html::escape_html_text(&value.to_string()))
+        }
+        RuntimeValue::Float(value) => {
+            out.push_str(&tstring_html::escape_html_text(&value.to_string()))
+        }
+        RuntimeValue::String(value) => out.push_str(&tstring_html::escape_html_text(value)),
+        RuntimeValue::RawHtml(value) => out.push_str(&tstring_html::escape_html_text(value)),
         RuntimeValue::Fragment(values) | RuntimeValue::Sequence(values) => {
             for value in values {
                 render_escaped_text_value(value, out)?;
@@ -735,19 +981,6 @@ fn render_escaped_text_value(value: &RuntimeValue, out: &mut String) -> Result<(
         }
     }
     Ok(())
-}
-
-fn escape_html_text(value: &str) -> String {
-    let mut escaped = String::with_capacity(value.len());
-    for ch in value.chars() {
-        match ch {
-            '&' => escaped.push_str("&amp;"),
-            '<' => escaped.push_str("&lt;"),
-            '>' => escaped.push_str("&gt;"),
-            _ => escaped.push(ch),
-        }
-    }
-    escaped
 }
 
 fn render_attribute_value_for_component(

@@ -1,3 +1,5 @@
 supported_profiles = ["default"]
 default_profile = "default"
+
+[profiles.default]
 manifest_path = "profiles/default/spec-map.toml"

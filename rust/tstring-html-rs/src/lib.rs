@@ -983,6 +983,13 @@ fn validate_attributes(attributes: &[AttributeLike]) -> BackendResult<()> {
                             attribute.span.clone(),
                         ));
                     }
+                    if let Some(static_value) = static_attribute_value(value) {
+                        reject_dangerous_url_attribute_value(
+                            &attribute.name,
+                            &static_value,
+                            attribute.span.clone(),
+                        )?;
+                    }
                 }
             }
             AttributeLike::SpreadAttribute(_) => {}
@@ -1193,13 +1200,22 @@ fn render_attribute(
                     RuntimeValue::Null => Ok(None),
                     RuntimeValue::Bool(false) => Ok(None),
                     RuntimeValue::Bool(true) => Ok(Some(None)),
-                    other => Ok(Some(Some(escape_html_attribute(&stringify_runtime_value(
-                        &other,
-                    )?)))),
+                    other => {
+                        let raw = stringify_runtime_value(other)?;
+                        Ok(Some(Some(escape_html_attribute_value(
+                            &attribute.name,
+                            &raw,
+                            attribute.span.clone(),
+                        )?)))
+                    }
                 };
             }
             let rendered = render_attribute_value_string(value, context, &attribute.name)?;
-            Ok(Some(Some(escape_html_attribute(&rendered))))
+            Ok(Some(Some(escape_html_attribute_value(
+                &attribute.name,
+                &rendered,
+                attribute.span.clone(),
+            )?)))
         }
     }
 }
@@ -1246,11 +1262,14 @@ fn apply_spread_attribute(
                             if !normalized.order.iter().any(|entry| entry == name) {
                                 normalized.order.push(name.clone());
                             }
+                            let raw = stringify_runtime_value_impl(other)?;
                             normalized.attrs.insert(
                                 name.clone(),
-                                Some(escape_html_attribute(&stringify_runtime_value_impl(
-                                    &other,
-                                )?)),
+                                Some(escape_html_attribute_value(
+                                    &name,
+                                    &raw,
+                                    attribute.span.clone(),
+                                )?),
                             );
                         }
                     },
@@ -1483,93 +1502,104 @@ fn stringify_runtime_value_impl(value: &RuntimeValue) -> BackendResult<String> {
     }
 }
 
-fn escape_html_text(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+#[must_use]
+pub fn escape_html_text(value: &str) -> String {
+    escape_html(value, false)
 }
 
-fn escape_html_attribute(value: &str) -> String {
-    let mut out = String::new();
-    let mut index = 0usize;
+#[must_use]
+pub fn escape_html_attribute(value: &str) -> String {
+    escape_html(value, true)
+}
 
-    while index < value.len() {
-        let ch = value[index..]
-            .chars()
-            .next()
-            .expect("valid character boundary");
+fn escape_html(value: &str, escape_quote: bool) -> String {
+    let mut out = String::with_capacity(value.len());
+    for ch in value.chars() {
         match ch {
-            '&' => {
-                if let Some(entity_len) = html_entity_len(&value[index..]) {
-                    out.push_str(&value[index..index + entity_len]);
-                    index += entity_len;
-                } else {
-                    out.push_str("&amp;");
-                    index += 1;
-                }
-            }
-            '<' => {
-                out.push_str("&lt;");
-                index += 1;
-            }
-            '>' => {
-                out.push_str("&gt;");
-                index += 1;
-            }
-            '"' => {
-                out.push_str("&quot;");
-                index += 1;
-            }
-            _ => {
-                out.push(ch);
-                index += ch.len_utf8();
-            }
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' if escape_quote => out.push_str("&quot;"),
+            _ => out.push(ch),
         }
     }
-
     out
 }
 
-fn html_entity_len(input: &str) -> Option<usize> {
-    let bytes = input.as_bytes();
-    if !bytes.starts_with(b"&") {
-        return None;
-    }
+fn escape_html_attribute_value(
+    name: &str,
+    value: &str,
+    span: Option<SourceSpan>,
+) -> BackendResult<String> {
+    reject_dangerous_url_attribute_value(name, value, span)?;
+    Ok(escape_html_attribute(value))
+}
 
-    let mut index = 1usize;
-    if bytes.get(index) == Some(&b'#') {
-        index += 1;
-        if matches!(bytes.get(index), Some(b'x' | b'X')) {
-            index += 1;
-            let start = index;
-            while bytes.get(index).is_some_and(u8::is_ascii_hexdigit) {
-                index += 1;
-            }
-            if index == start || bytes.get(index) != Some(&b';') {
-                return None;
-            }
-            return Some(index + 1);
+fn static_attribute_value(value: &AttributeValue) -> Option<String> {
+    let mut rendered = String::new();
+    for part in &value.parts {
+        match part {
+            ValuePart::Text(text) => rendered.push_str(text),
+            ValuePart::Interpolation(_) => return None,
         }
+    }
+    Some(rendered)
+}
 
-        let start = index;
-        while bytes.get(index).is_some_and(u8::is_ascii_digit) {
-            index += 1;
-        }
-        if index == start || bytes.get(index) != Some(&b';') {
-            return None;
-        }
-        return Some(index + 1);
+fn reject_dangerous_url_attribute_value(
+    name: &str,
+    value: &str,
+    span: Option<SourceSpan>,
+) -> BackendResult<()> {
+    if !is_url_attribute_name(name) {
+        return Ok(());
     }
+    let Some(scheme) = dangerous_url_scheme(value) else {
+        return Ok(());
+    };
+    Err(runtime_error(
+        "html.runtime.url_scheme",
+        format!("URL attribute '{name}' cannot use the unsafe {scheme} scheme."),
+        span,
+    ))
+}
 
-    let start = index;
-    while bytes.get(index).is_some_and(u8::is_ascii_alphanumeric) {
-        index += 1;
+fn is_url_attribute_name(name: &str) -> bool {
+    const URL_ATTRIBUTE_NAMES: &[&str] = &[
+        "href",
+        "src",
+        "action",
+        "formaction",
+        "xlink:href",
+        "cite",
+        "poster",
+        "background",
+        "manifest",
+    ];
+    URL_ATTRIBUTE_NAMES
+        .iter()
+        .any(|attribute| name.eq_ignore_ascii_case(attribute))
+}
+
+fn dangerous_url_scheme(value: &str) -> Option<&'static str> {
+    let mut normalized = String::with_capacity(value.len().min("javascript:".len()));
+    for ch in value.chars() {
+        if ch.is_control() || ch.is_whitespace() {
+            continue;
+        }
+        normalized.push(ch.to_ascii_lowercase());
+        match normalized.as_str() {
+            "data:" => return Some("data:"),
+            "vbscript:" => return Some("vbscript:"),
+            "javascript:" => return Some("javascript:"),
+            candidate
+                if "data:".starts_with(candidate)
+                    || "vbscript:".starts_with(candidate)
+                    || "javascript:".starts_with(candidate) => {}
+            _ => return None,
+        }
     }
-    if index == start || bytes.get(index) != Some(&b';') {
-        return None;
-    }
-    Some(index + 1)
+    None
 }
 
 fn flatten_input(template: &TemplateInput) -> Vec<StreamItem> {
@@ -1759,6 +1789,34 @@ mod tests {
         )
         .expect("render title");
         assert_eq!(rendered, "<title>&lt;safe&gt;</title>");
+    }
+
+    #[test]
+    fn unsafe_static_url_attributes_are_rejected_during_check() {
+        let input = TemplateInput::from_segments(vec![TemplateSegment::StaticText(
+            "<a href=\"java\n script:alert(1)\">x</a>".to_string(),
+        )]);
+        let err = check_template(&input).expect_err("unsafe URL scheme must fail");
+        assert_eq!(err.kind, ErrorKind::Semantic);
+        assert!(err.message.contains("unsafe javascript:"));
+    }
+
+    #[test]
+    fn attribute_escaping_always_escapes_ampersands() {
+        let input = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<div title=\"".to_string()),
+            interpolation(0, "title", Some("{title}")),
+            TemplateSegment::StaticText("\"></div>".to_string()),
+        ]);
+        let compiled = compile_template(&input).expect("compile html template");
+        let rendered = render_html(
+            &compiled,
+            &RuntimeContext {
+                values: vec![RuntimeValue::String("safe &amp; sound".to_string())],
+            },
+        )
+        .expect("render html");
+        assert_eq!(rendered, "<div title=\"safe &amp;amp; sound\"></div>");
     }
 
     #[test]

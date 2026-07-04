@@ -8,6 +8,7 @@ from html_tstring import (
     Fragment,
     RawHtml,
     TemplateParseError,
+    TemplateRuntimeError,
     TemplateSemanticError,
     check_template,
     format_template,
@@ -22,8 +23,9 @@ def load_cases() -> list[dict[str, str]]:
     profile_data = tomllib.loads(
         (repo_root / "conformance" / "html" / "profiles.toml").read_text()
     )
+    profile = profile_data["profiles"][profile_data["default_profile"]]
     manifest = tomllib.loads(
-        (repo_root / "conformance" / "html" / profile_data["manifest_path"]).read_text()
+        (repo_root / "conformance" / "html" / profile["manifest_path"]).read_text()
     )
     return manifest["cases"]
 
@@ -81,6 +83,13 @@ def _render_case(case_id: str) -> str:
         case "quoted-dynamic-attribute":
             href = "/dashboard"
             return render_html(t'<a href="{href}">Dashboard</a>')
+        case "attribute-ampersand-always-escaped":
+            title = "Tom &amp; Jerry"
+            return render_html(t'<div title="{title}"></div>')
+        case "conversion-and-format-applied":
+            value = "<x>"
+            amount = 3.14159
+            return render_html(t"<p>{value!r} {amount:.2f}</p>")
         case "boolean-attribute-bare-and-omitted":
             visible = True
             hidden = False
@@ -120,6 +129,7 @@ def _render_case(case_id: str) -> str:
 def _assert_error(case_id: str, expected_error: str) -> None:
     error_type = {
         "TemplateParseError": TemplateParseError,
+        "TemplateRuntimeError": TemplateRuntimeError,
         "TemplateSemanticError": TemplateSemanticError,
     }[expected_error]
 
@@ -143,6 +153,15 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "unquoted-dynamic-attr-rejected":
                 title = "safe & sound"
                 check_template(t"<div title={title}></div>")
+            case "dangerous-url-scheme-rejected":
+                href = "javascript:alert(1)"
+                render_html(t'<a href="{href}">x</a>')
+            case "dangerous-url-scheme-normalized-rejected":
+                href = "java\n script:alert(1)"
+                render_html(t'<a href="{href}">x</a>')
+            case "dangerous-url-spread-rejected":
+                attrs = {"href": "data:text/html,<svg></svg>"}
+                render_html(t"<a {attrs}>x</a>")
             case "spread-non-mapping-error":
                 attrs = 1
                 render_html(t"<div {attrs}></div>")
@@ -152,6 +171,12 @@ def _assert_error(case_id: str, expected_error: str) -> None:
             case "class-bool-rejected":
                 value = True
                 render_html(t'<button class="{value}"></button>')
+            case "raw-template-child-rejected":
+                child = t"<span>x</span>"
+                render_html(t"<div>{child}</div>")
+            case "bytes-child-rejected":
+                value = b"AB"
+                render_html(t"<div>{value}</div>")
             case _:
                 raise AssertionError(f"Unhandled HTML error case: {case_id}")
 

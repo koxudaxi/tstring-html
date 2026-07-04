@@ -16,9 +16,9 @@ homepage = "https://github.com/koxudaxi/tstring-html"
 license = "MIT"
 repository = "https://github.com/koxudaxi/tstring-html"
 rust-version = "1.94.0"
-version = "0.1.5"
+version = "0.1.10"
 
 [workspace.dependencies]
 pyo3 = "0.27.1"
-tstring-syntax = { version = "=0.2.2" }
+tstring-syntax = { version = "0.2.2" }
 unicode-width = "0.2.2"

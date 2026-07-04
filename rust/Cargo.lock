@@ -290,14 +290,14 @@ checksum = "5d99f8c9a7727884afe522e9bd5edbfc91a3312b36a77b5fb8926e4c31a41801"
 
 [[package]]
 name = "tstring-format-doc"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "unicode-width",
 ]
 
 [[package]]
 name = "tstring-html"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "tstring-format-doc",
  "tstring-syntax",
@@ -305,7 +305,7 @@ dependencies = [
 
 [[package]]
 name = "tstring-html-backend-e2e-tests"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "serde",
  "toml",
@@ -317,7 +317,7 @@ dependencies = [
 
 [[package]]
 name = "tstring-html-bindings"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "pyo3",
  "tstring-html",
@@ -336,7 +336,7 @@ dependencies = [
 
 [[package]]
 name = "tstring-tdom"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "tstring-format-doc",
  "tstring-syntax",
@@ -344,7 +344,7 @@ dependencies = [
 
 [[package]]
 name = "tstring-thtml"
-version = "0.1.5"
+version = "0.1.10"
 dependencies = [
  "tstring-html",
  "tstring-syntax",

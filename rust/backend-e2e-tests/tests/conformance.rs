@@ -1,4 +1,8 @@
-use std::{collections::BTreeSet, fs, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    fs,
+    path::PathBuf,
+};
 
 use serde::Deserialize;
 use tstring_html as backend_html;
@@ -9,6 +13,12 @@ use tstring_thtml as backend_thtml;
 
 #[derive(Debug, Deserialize)]
 struct ProfilesIndex {
+    default_profile: String,
+    profiles: BTreeMap<String, ProfileEntry>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ProfileEntry {
     manifest_path: String,
 }
 
@@ -82,7 +92,11 @@ fn load_manifest(format_name: &str) -> Manifest {
     let format_root = repo_root().join("conformance").join(format_name);
     let profiles: ProfilesIndex =
         toml::from_str(&fs::read_to_string(format_root.join("profiles.toml")).unwrap()).unwrap();
-    toml::from_str(&fs::read_to_string(format_root.join(profiles.manifest_path)).unwrap()).unwrap()
+    let profile = profiles
+        .profiles
+        .get(&profiles.default_profile)
+        .expect("default profile entry");
+    toml::from_str(&fs::read_to_string(format_root.join(&profile.manifest_path)).unwrap()).unwrap()
 }
 
 fn runtime(values: Vec<RuntimeValue>) -> RuntimeContext {
@@ -233,6 +247,77 @@ fn html_manifest_cases_match_rust_backend() {
                 )
                 .unwrap();
                 assert_eq!(rendered, case.expected.as_deref().unwrap());
+            }
+            "attribute-ampersand-always-escaped" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<div title=\"".into()),
+                    interpolation(0, "title", "{title}"),
+                    TemplateSegment::StaticText("\"></div>".into()),
+                ]);
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let rendered = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![RuntimeValue::String("Tom &amp; Jerry".into())]),
+                )
+                .unwrap();
+                assert_eq!(rendered, case.expected.as_deref().unwrap());
+            }
+            "dangerous-url-scheme-rejected" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<a href=\"".into()),
+                    interpolation(0, "href", "{href}"),
+                    TemplateSegment::StaticText("\">x</a>".into()),
+                ]);
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let err = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![RuntimeValue::String("javascript:alert(1)".into())]),
+                )
+                .unwrap_err();
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
+                assert!(err.message.contains("unsafe javascript:"));
+            }
+            "dangerous-url-scheme-normalized-rejected" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<a href=\"".into()),
+                    interpolation(0, "href", "{href}"),
+                    TemplateSegment::StaticText("\">x</a>".into()),
+                ]);
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let err = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![RuntimeValue::String("java\t script:alert(1)".into())]),
+                )
+                .unwrap_err();
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
+                assert!(err.message.contains("unsafe javascript:"));
+            }
+            "dangerous-url-spread-rejected" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<a ".into()),
+                    interpolation(0, "attrs", "{attrs}"),
+                    TemplateSegment::StaticText(">x</a>".into()),
+                ]);
+                let compiled = backend_html::compile_template(&input).unwrap();
+                let err = backend_html::render_html(
+                    &compiled,
+                    &runtime(vec![RuntimeValue::Attributes(vec![(
+                        "href".into(),
+                        RuntimeValue::String("data:text/html,<svg></svg>".into()),
+                    )])]),
+                )
+                .unwrap_err();
+                assert_eq!(
+                    case.expected_error.as_deref(),
+                    Some("TemplateSemanticError")
+                );
+                assert!(err.message.contains("unsafe data:"));
             }
             "boolean-attribute-bare-and-omitted" => {
                 let input = TemplateInput::from_segments(vec![

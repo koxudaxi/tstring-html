@@ -78,6 +78,14 @@ execution_layer = "python"
 note = "HTML elements inside T-HTML follow the same attr/class/spread rules as HTML."
 
 [[cases]]
+case_id = "html-element-dangerous-url-rejected"
+spec_ref = "v1.thtml.html-element-url-scheme"
+operation = "render_html"
+expected_error = "TemplateSemanticError"
+execution_layer = "python"
+note = "HTML elements in T-HTML use the shared unsafe URL scheme policy."
+
+[[cases]]
 case_id = "html-element-spread-invalid-attribute-name-error"
 spec_ref = "v1.thtml.html-element-spread-name"
 operation = "render_html"
@@ -140,6 +148,30 @@ operation = "render_html"
 expected = "<ok />"
 execution_layer = "python"
 note = "Interpolated Fragment values remain Fragment when passed as children."
+
+[[cases]]
+case_id = "conversion-and-format-applied"
+spec_ref = "v1.thtml.pep750-conversion-format"
+operation = "render_html"
+expected = "<div>'&lt;x&gt;' 3.14</div>"
+execution_layer = "python"
+note = "Python bindings apply PEP 750 conversion and format_spec to scalar values before T-HTML rendering."
+
+[[cases]]
+case_id = "raw-template-child-rejected"
+spec_ref = "v1.thtml.template-child"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "Raw Template child values must be wrapped as Renderable values."
+
+[[cases]]
+case_id = "bytes-child-rejected"
+spec_ref = "v1.thtml.bytes-child"
+operation = "render_html"
+expected_error = "TemplateRuntimeError"
+execution_layer = "python"
+note = "bytes and bytearray values are rejected instead of being rendered as integer sequences."
 
 [[cases]]
 case_id = "literal-child-markup-becomes-raw-html"

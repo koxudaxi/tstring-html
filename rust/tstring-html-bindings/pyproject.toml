@@ -1,6 +1,6 @@
 [project]
 name = "tstring-html-bindings"
-version = "0.1.5"
+version = "0.1.10"
 description = "Native Python bindings for tstring-html"
 readme = "README.md"
 license = { text = "MIT" }
