@@ -1,9 +1,9 @@
 name: Publish Rust Crates
 
 on:
-  push:
-    tags:
-      - "**"
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       version:
@@ -15,37 +15,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-rust-${{ github.event.inputs.version || github.ref_name }}
+  group: publish-rust-${{ github.event.release.tag_name || github.event.inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
   resolve-version:
-    runs-on: ubuntu-latest
-    outputs:
-      version: ${{ steps.resolve.outputs.version }}
-    steps:
-      - name: Resolve release version
-        id: resolve
-        shell: bash
-        env:
-          INPUT_VERSION: ${{ github.event.inputs.version }}
-          REF_NAME: ${{ github.ref_name }}
-          REF_TYPE: ${{ github.ref_type }}
-        run: |
-          version="${INPUT_VERSION}"
-          if [ -z "$version" ]; then
-            if [ "$REF_TYPE" = "tag" ]; then
-              version="$REF_NAME"
-            else
-              echo "::error::Set the version input or run this workflow on a tag ref."
-              exit 1
-            fi
-          fi
-
-          version="${version#refs/tags/}"
-          version="${version#v}"
-          version="${version#V}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+    uses: ./.github/workflows/resolve-release-version.yml
+    with:
+      version: ${{ github.event.inputs.version || '' }}
+      release_tag: ${{ github.event.release.tag_name || '' }}
+      ref_name: ${{ github.ref_name }}
+      ref_type: ${{ github.ref_type }}
 
   version-check:
     needs: resolve-version
@@ -55,6 +35,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Validate lockstep versions against tag
         run: |
@@ -69,6 +52,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -89,6 +75,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -111,6 +100,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -136,6 +128,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -161,6 +156,9 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
+          persist-credentials: false
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
