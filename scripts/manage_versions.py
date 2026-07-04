@@ -45,6 +45,23 @@ class Rule:
         return False
 
 
+def rust_path_dependency_rule(
+    path: str,
+    dependency: str,
+    dependency_path: str,
+    label: str,
+) -> Rule:
+    return Rule(
+        path,
+        (
+            rf'({re.escape(dependency)} = \{{ version = "){VERSION_RE}'
+            rf'(", path = "{re.escape(dependency_path)}" \}})'
+        ),
+        r"\g<1>{version}\g<3>",
+        label,
+    )
+
+
 RULES = [
     Rule(
         "pyproject.toml",
@@ -100,49 +117,52 @@ RULES = [
         r"\g<1>{version}\g<3>",
         "Rust workspace version",
     ),
-    Rule(
+    rust_path_dependency_rule(
+        "rust/tstring-html-rs/Cargo.toml",
+        "tstring-format-doc",
+        "../tstring-format-doc-rs",
+        "rust tstring-html dependency tstring-format-doc",
+    ),
+    rust_path_dependency_rule(
+        "rust/tstring-tdom-rs/Cargo.toml",
+        "tstring-format-doc",
+        "../tstring-format-doc-rs",
+        "rust tstring-tdom dependency tstring-format-doc",
+    ),
+    rust_path_dependency_rule(
         "rust/tstring-thtml-rs/Cargo.toml",
-        (
-            rf'(tstring-html = \{{ version = "){VERSION_RE}'
-            r'(", path = "\.\./tstring-html-rs" \})'
-        ),
-        r'\g<1>{version}\g<3>',
+        "tstring-html",
+        "../tstring-html-rs",
         "rust tstring-thtml dependency tstring-html",
     ),
-    Rule(
+    rust_path_dependency_rule(
         "rust/tstring-html-bindings/Cargo.toml",
-        (
-            rf'(tstring-html = \{{ version = "){VERSION_RE}'
-            r'(", path = "\.\./tstring-html-rs" \})'
-        ),
-        r'\g<1>{version}\g<3>',
+        "tstring-html",
+        "../tstring-html-rs",
         "rust bindings dependency tstring-html",
     ),
-    Rule(
+    rust_path_dependency_rule(
         "rust/tstring-html-bindings/Cargo.toml",
-        (
-            rf'(tstring-thtml = \{{ version = "){VERSION_RE}'
-            r'(", path = "\.\./tstring-thtml-rs" \})'
-        ),
-        r'\g<1>{version}\g<3>',
+        "tstring-thtml",
+        "../tstring-thtml-rs",
         "rust bindings dependency tstring-thtml",
     ),
-    Rule(
+    rust_path_dependency_rule(
         "rust/backend-e2e-tests/Cargo.toml",
-        (
-            rf'(tstring-html = \{{ version = "){VERSION_RE}'
-            r'(", path = "\.\./tstring-html-rs" \})'
-        ),
-        r'\g<1>{version}\g<3>',
+        "tstring-html",
+        "../tstring-html-rs",
         "backend e2e dependency tstring-html",
     ),
-    Rule(
+    rust_path_dependency_rule(
         "rust/backend-e2e-tests/Cargo.toml",
-        (
-            rf'(tstring-thtml = \{{ version = "){VERSION_RE}'
-            r'(", path = "\.\./tstring-thtml-rs" \})'
-        ),
-        r'\g<1>{version}\g<3>',
+        "tstring-tdom",
+        "../tstring-tdom-rs",
+        "backend e2e dependency tstring-tdom",
+    ),
+    rust_path_dependency_rule(
+        "rust/backend-e2e-tests/Cargo.toml",
+        "tstring-thtml",
+        "../tstring-thtml-rs",
         "backend e2e dependency tstring-thtml",
     ),
 ]
