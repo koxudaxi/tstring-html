@@ -1,9 +1,9 @@
 name: Publish Rust Crates
 
 on:
-  push:
-    tags:
-      - "**"
+  release:
+    types:
+      - published
   workflow_dispatch:
     inputs:
       version:
@@ -15,7 +15,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: publish-rust-${{ github.event.inputs.version || github.ref_name }}
+  group: publish-rust-${{ github.event.release.tag_name || github.event.inputs.version || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -23,21 +23,28 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      tag_name: ${{ steps.resolve.outputs.tag_name }}
     steps:
       - name: Resolve release version
         id: resolve
         shell: bash
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           REF_NAME: ${{ github.ref_name }}
           REF_TYPE: ${{ github.ref_type }}
         run: |
           version="${INPUT_VERSION}"
+          tag_name=""
           if [ -z "$version" ]; then
-            if [ "$REF_TYPE" = "tag" ]; then
+            if [ -n "$RELEASE_TAG" ]; then
+              version="$RELEASE_TAG"
+              tag_name="$RELEASE_TAG"
+            elif [ "$REF_TYPE" = "tag" ]; then
               version="$REF_NAME"
+              tag_name="$REF_NAME"
             else
-              echo "::error::Set the version input or run this workflow on a tag ref."
+              printf '%s\n' "Set the version input, publish a GitHub Release, or run this workflow on a tag ref." >&2
               exit 1
             fi
           fi
@@ -45,7 +52,15 @@ jobs:
           version="${version#refs/tags/}"
           version="${version#v}"
           version="${version#V}"
+          if [[ "$version" == *$'\n'* || "$version" == *$'\r'* || ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf '%s\n' "Expected semantic version like 0.1.0." >&2
+            exit 1
+          fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
+          if [ -n "$tag_name" ]; then
+            tag_name="${tag_name#refs/tags/}"
+            echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
+          fi
 
   version-check:
     needs: resolve-version
@@ -55,6 +70,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Validate lockstep versions against tag
         run: |
@@ -69,6 +86,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -89,6 +108,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -111,6 +132,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -136,6 +159,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"
@@ -161,6 +186,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.resolve-version.outputs.tag_name || github.ref }}
 
       - name: Sync lockstep versions to release tag
         run: python3 scripts/manage_versions.py set "${{ needs.resolve-version.outputs.version }}"

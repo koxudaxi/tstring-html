@@ -1163,8 +1163,8 @@ uv run ruff check .
 | --- | --- | --- |
 | `ci.yml` | push, PR | test, lint, coverage, build, twine check |
 | `docs.yaml` | push, PR (docs), release | build docs, deploy to Cloudflare Pages |
-| `publish-python.yml` | tag push | builds Python artifacts, then publishes `tstring-html-bindings`, `html-tstring`, and `thtml-tstring` via separate Trusted Publisher environments |
-| `publish-rust.yml` | tag push | crates.io |
+| `publish-python.yml` | GitHub Release published | builds Python artifacts, then publishes `tstring-html-bindings`, `html-tstring`, and `thtml-tstring` via separate Trusted Publisher environments |
+| `publish-rust.yml` | GitHub Release published | crates.io |
 
 ---
 
