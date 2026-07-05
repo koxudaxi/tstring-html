@@ -6,6 +6,17 @@ All notable changes to this project are documented in this file.
 **Full Changelog**: https://github.com/koxudaxi/tstring-html/commits/0.1.0
 
 ---
+## [0.2.1](https://github.com/koxudaxi/tstring-html/releases/tag/0.2.1) - 2026-07-05
+
+## What's Changed
+* Fix Rust release version sync by @koxudaxi in https://github.com/koxudaxi/tstring-html/pull/17
+* Expose tdom component prop type requirements by @koxudaxi in https://github.com/koxudaxi/tstring-html/pull/18
+
+
+**Full Changelog**: https://github.com/koxudaxi/tstring-html/compare/0.2.0...0.2.1
+
+---
+
 ## [0.2.0](https://github.com/koxudaxi/tstring-html/releases/tag/0.2.0) - 2026-07-04
 
 ## Breaking Changes
