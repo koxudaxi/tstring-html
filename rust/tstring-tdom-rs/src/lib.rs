@@ -979,10 +979,12 @@ fn collect_component_attribute_type_requirements<F, T>(
     T: Into<String>,
 {
     match attribute {
-        AttributeLike::InterpolatedAttribute(attribute)
-            if !matches!(attribute.name.as_str(), "data" | "aria") =>
-        {
-            let value_kind = if matches!(attribute.name.as_str(), "class" | "style") {
+        AttributeLike::InterpolatedAttribute(attribute) => {
+            let prop_name = normalize_component_prop_name(&attribute.name);
+            if matches!(prop_name.as_ref(), "data" | "aria") {
+                return;
+            }
+            let value_kind = if matches!(prop_name.as_ref(), "class" | "style") {
                 ComponentPropValueKind::StringLike
             } else {
                 ComponentPropValueKind::Typed
@@ -991,6 +993,7 @@ fn collect_component_attribute_type_requirements<F, T>(
                 component_expression,
                 component_interpolation_index,
                 &attribute.name,
+                prop_name,
                 &attribute.interpolation,
                 value_kind,
                 resolve_expected_python_type,
@@ -998,6 +1001,7 @@ fn collect_component_attribute_type_requirements<F, T>(
             );
         }
         AttributeLike::TemplatedAttribute(attribute) => {
+            let prop_name = normalize_component_prop_name(&attribute.name);
             for part in &attribute.parts {
                 let ValuePart::Interpolation(interpolation) = part else {
                     continue;
@@ -1006,6 +1010,7 @@ fn collect_component_attribute_type_requirements<F, T>(
                     component_expression,
                     component_interpolation_index,
                     &attribute.name,
+                    prop_name.clone(),
                     interpolation,
                     ComponentPropValueKind::StringFragment,
                     resolve_expected_python_type,
@@ -1013,9 +1018,7 @@ fn collect_component_attribute_type_requirements<F, T>(
                 );
             }
         }
-        AttributeLike::LiteralAttribute(_)
-        | AttributeLike::InterpolatedAttribute(_)
-        | AttributeLike::SpreadAttribute(_) => {}
+        AttributeLike::LiteralAttribute(_) | AttributeLike::SpreadAttribute(_) => {}
     }
 }
 
@@ -1023,6 +1026,7 @@ fn push_component_prop_type_requirement<F, T>(
     component_expression: &str,
     component_interpolation_index: usize,
     raw_prop_name: &str,
+    prop_name: Cow<'_, str>,
     interpolation: &InterpolationNode,
     value_kind: ComponentPropValueKind,
     resolve_expected_python_type: &mut F,
@@ -1031,7 +1035,6 @@ fn push_component_prop_type_requirement<F, T>(
     F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
     T: Into<String>,
 {
-    let prop_name = normalize_component_prop_name(raw_prop_name);
     let Some(expected_python_type) = resolve_expected_python_type(ComponentPropInterpolation {
         component_expression,
         component_interpolation_index,
@@ -1805,6 +1808,83 @@ mod tests {
                 4,
                 "str",
                 "tdom component prop 'title'",
+            )]
+        );
+    }
+
+    #[test]
+    fn tdom_document_type_requirements_use_normalized_special_prop_names() {
+        let document = Document {
+            children: vec![Node::ComponentTag(ComponentTagNode {
+                start_tag: InterpolationNode {
+                    interpolation_index: 0,
+                    expression: "Card".to_owned(),
+                    raw_source: Some("{Card}".to_owned()),
+                    conversion: None,
+                    format_spec: String::new(),
+                    span: None,
+                },
+                end_tag: None,
+                attributes: vec![
+                    AttributeLike::InterpolatedAttribute(InterpolatedAttribute {
+                        name: "Class".to_owned(),
+                        interpolation: InterpolationNode {
+                            interpolation_index: 1,
+                            expression: "classes".to_owned(),
+                            raw_source: Some("{classes}".to_owned()),
+                            conversion: None,
+                            format_spec: String::new(),
+                            span: None,
+                        },
+                        span: None,
+                    }),
+                    AttributeLike::InterpolatedAttribute(InterpolatedAttribute {
+                        name: "DATA".to_owned(),
+                        interpolation: InterpolationNode {
+                            interpolation_index: 2,
+                            expression: "data_attrs".to_owned(),
+                            raw_source: Some("{data_attrs}".to_owned()),
+                            conversion: None,
+                            format_spec: String::new(),
+                            span: None,
+                        },
+                        span: None,
+                    }),
+                ],
+                children: Vec::new(),
+                self_closing: true,
+                span: None,
+            })],
+            span: None,
+        };
+
+        let mut seen = Vec::new();
+        let requirements = interpolation_type_requirements_for_document_with_component_props(
+            &document,
+            |context| {
+                seen.push((
+                    context.raw_prop_name.to_owned(),
+                    context.prop_name.to_string(),
+                    context.value_kind,
+                ));
+                Some("str")
+            },
+        );
+
+        assert_eq!(
+            seen,
+            vec![(
+                "Class".to_owned(),
+                "class".to_owned(),
+                ComponentPropValueKind::StringLike,
+            )]
+        );
+        assert_eq!(
+            requirements,
+            vec![InterpolationTypeRequirement::new(
+                1,
+                "str",
+                "tdom component prop 'class' string-like value",
             )]
         );
     }
