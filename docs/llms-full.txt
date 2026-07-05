@@ -903,7 +903,15 @@ The integration seam is:
 - Diagnostics use `tstring_syntax::SourceSpan`
 - Tooling constructs `TemplateInput` from source text and preserves `raw_source`
 - No Python runtime object is required for lint/format
-- Reserved language ids: `"html"` and `"thtml"`
+- Reserved language ids: `"html"`, `"thtml"`, and `"tdom"`
+
+For TDOM component prop type checking, tools should use
+`tstring_tdom::interpolation_type_requirements_with_component_props`. The
+backend walks component tags, normalizes prop names such as `data-user-id` to
+`data_user_id`, and passes each concrete prop interpolation to the caller. The
+caller resolves the component expression and returns the expected Python
+annotation. This keeps TDOM syntax ownership in the backend while letting tools
+such as t-linter use their own Python type-resolution model.
 
 ---
 
@@ -1028,6 +1036,14 @@ enum ErrorKind { Parse, Semantic, Unrepresentable }
 | Formatting | T-HTML formatter with component syntax |
 | Compile | `CompiledThtmlTemplate` with the parsed document |
 
+**tstring-tdom-rs** exposes TDOM parsing and tooling metadata:
+
+| Part | What it does |
+| --- | --- |
+| Parsing | Builds TDOM AST nodes with component tags and interpolation indexes |
+| Formatting | Formats HTML or SVG TDOM syntax from preserved `raw_source` |
+| Type requirement metadata | Walks component props and reports concrete interpolation sites; callers resolve Python types |
+
 `Renderable` lives entirely in the Python / bindings layer. The Rust backend does not know about it.
 
 ## Data Flow
@@ -1107,6 +1123,7 @@ When the backend is used outside the Python runtime (e.g. by t-linter), callers 
 - `check_template` validates structure and returns diagnostics with source spans
 - `format_template` re-renders canonical HTML/T-HTML, preserving interpolation source from `raw_source`
 - Missing `raw_source` is a semantic error
+- TDOM component prop type metadata comes from `interpolation_type_requirements_with_component_props`; Python symbol/type resolution stays in the calling tool
 
 ### Error model
 
@@ -1470,6 +1487,42 @@ class RawHtml:
 | `ThtmlTemplate` | `Annotated[Template, "thtml"]` | `thtml_tstring` |
 
 These are for documentation and type-checker hints only. At runtime any `Template` is accepted.
+
+## Rust Backend APIs
+
+The Rust crates accept `tstring_syntax::TemplateInput` directly. This is the
+integration surface for tooling such as t-linter.
+
+### `tstring_tdom::interpolation_type_requirements_with_component_props`
+
+Collect type-checking targets for concrete TDOM component prop interpolations.
+The backend owns TDOM parsing, component tag traversal, interpolation indexes,
+and prop name normalization. The caller owns Python symbol and type resolution.
+
+```rust
+use tstring_tdom::{
+    ComponentPropInterpolation,
+    interpolation_type_requirements_with_component_props,
+};
+
+let requirements = interpolation_type_requirements_with_component_props(
+    &template,
+    |context: ComponentPropInterpolation<'_>| {
+        match (context.component_expression, context.prop_name.as_ref()) {
+            ("Button", "label") => Some("str"),
+            ("Button", "count") => Some("int"),
+            _ => None,
+        }
+    },
+)?;
+```
+
+Use `interpolation_type_requirements_for_document_with_component_props` when a
+caller already has a prepared TDOM `Document` and wants to avoid reparsing.
+
+The returned `InterpolationTypeRequirement` values use the original
+interpolation indexes from `TemplateInput`, so callers can map type-checker
+diagnostics back to the source interpolation.
 
 ## Exceptions
 

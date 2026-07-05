@@ -914,6 +914,40 @@ fn tdom_manifest_cases_match_rust_seam() {
                 let formatted = backend_tdom::format_template(&input).unwrap();
                 assert_eq!(formatted, case.expected.as_deref().unwrap());
             }
+            "component-prop-type-requirements" => {
+                let input = TemplateInput::from_segments(vec![
+                    TemplateSegment::StaticText("<".into()),
+                    interpolation(0, "Button", "{Button}"),
+                    TemplateSegment::StaticText(" label=".into()),
+                    interpolation(1, "label", "{label}"),
+                    TemplateSegment::StaticText(" data-user-id=".into()),
+                    interpolation(2, "user_id", "{user_id}"),
+                    TemplateSegment::StaticText(" />".into()),
+                ]);
+                let requirements =
+                    backend_tdom::interpolation_type_requirements_with_component_props(
+                        &input,
+                        |context| match context.prop_name.as_ref() {
+                            "label" => Some("str"),
+                            "data_user_id" => Some("int"),
+                            _ => None,
+                        },
+                    )
+                    .unwrap();
+                let rendered = requirements
+                    .iter()
+                    .map(|requirement| {
+                        format!(
+                            "{}:{}:{}",
+                            requirement.interpolation_index,
+                            requirement.expected_description,
+                            requirement.expected_python_type
+                        )
+                    })
+                    .collect::<Vec<_>>()
+                    .join(";");
+                assert_eq!(rendered, case.expected.as_deref().unwrap());
+            }
             "component-close-expression-runtime-validated" => {
                 let input = TemplateInput::from_segments(vec![
                     TemplateSegment::StaticText("<".into()),

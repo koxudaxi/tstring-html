@@ -78,6 +78,14 @@ execution_layer = "rust"
 note = "Interpolation raw_source is preserved verbatim, including safe and unsafe format specs."
 
 [[cases]]
+case_id = "component-prop-type-requirements"
+spec_ref = "v1.tdom.component-prop-type-requirements"
+operation = "interpolation_type_requirements_with_component_props"
+expected = "1:tdom component prop 'label':str;2:tdom component prop 'data_user_id':int"
+execution_layer = "rust"
+note = "TDOM reports concrete component prop interpolation sites while callers resolve Python types."
+
+[[cases]]
 case_id = "component-close-expression-runtime-validated"
 spec_ref = "v1.tdom.component-close-runtime-validation"
 operation = "format_template"
