@@ -299,6 +299,42 @@ class RawHtml:
 
 These are for documentation and type-checker hints only. At runtime any `Template` is accepted.
 
+## Rust Backend APIs
+
+The Rust crates accept `tstring_syntax::TemplateInput` directly. This is the
+integration surface for tooling such as t-linter.
+
+### `tstring_tdom::interpolation_type_requirements_with_component_props`
+
+Collect type-checking targets for concrete TDOM component prop interpolations.
+The backend owns TDOM parsing, component tag traversal, interpolation indexes,
+and prop name normalization. The caller owns Python symbol and type resolution.
+
+```rust
+use tstring_tdom::{
+    ComponentPropInterpolation,
+    interpolation_type_requirements_with_component_props,
+};
+
+let requirements = interpolation_type_requirements_with_component_props(
+    &template,
+    |context: ComponentPropInterpolation<'_>| {
+        match (context.component_expression, context.prop_name.as_ref()) {
+            ("Button", "label") => Some("str"),
+            ("Button", "count") => Some("int"),
+            _ => None,
+        }
+    },
+)?;
+```
+
+Use `interpolation_type_requirements_for_document_with_component_props` when a
+caller already has a prepared TDOM `Document` and wants to avoid reparsing.
+
+The returned `InterpolationTypeRequirement` values use the original
+interpolation indexes from `TemplateInput`, so callers can map type-checker
+diagnostics back to the source interpolation.
+
 ## Exceptions
 
 ```

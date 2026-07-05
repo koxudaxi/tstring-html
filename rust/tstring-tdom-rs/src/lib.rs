@@ -1,7 +1,9 @@
+use std::borrow::Cow;
+
 use tstring_format_doc::{Doc, RenderOptions, flat_width, has_forced_break, render};
 use tstring_syntax::{
-    BackendError, BackendResult, Diagnostic, ErrorKind, SourceSpan, StreamItem, TemplateInput,
-    TemplateInterpolation, TemplateSegment,
+    BackendError, BackendResult, Diagnostic, ErrorKind, InterpolationTypeRequirement, SourceSpan,
+    StreamItem, TemplateInput, TemplateInterpolation, TemplateSegment,
 };
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -122,6 +124,37 @@ pub struct InterpolationNode {
     pub conversion: Option<String>,
     pub format_spec: String,
     pub span: Option<SourceSpan>,
+}
+
+/// How a component prop interpolation is used by the TDOM syntax.
+#[non_exhaustive]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ComponentPropValueKind {
+    /// A singleton interpolation such as `count={count}`.
+    Typed,
+    /// A singleton interpolation in syntax that TDOM treats as string-like,
+    /// such as `class={classes}` or `style={style}`.
+    StringLike,
+    /// An interpolation inside an attribute string such as `label="Hi {name}"`.
+    StringFragment,
+}
+
+/// Context passed to type-aware callers for a component prop interpolation.
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ComponentPropInterpolation<'a> {
+    /// Component expression from the start tag, for example `Button` in `<{Button}>`.
+    pub component_expression: &'a str,
+    /// Interpolation index for the component expression itself.
+    pub component_interpolation_index: usize,
+    /// Attribute name exactly as parsed from TDOM source.
+    pub raw_prop_name: &'a str,
+    /// Python keyword form of `raw_prop_name`; kebab-case is converted to snake_case.
+    pub prop_name: Cow<'a, str>,
+    /// The interpolation node that should receive a type requirement.
+    pub interpolation: &'a InterpolationNode,
+    /// The TDOM value context for this interpolation.
+    pub value_kind: ComponentPropValueKind,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -823,6 +856,219 @@ pub fn prepare_template(template: &TemplateInput) -> BackendResult<Document> {
     Ok(document)
 }
 
+/// Collect type requirements for TDOM component prop interpolations.
+///
+/// TDOM owns the AST traversal and prop-name normalization. The caller owns
+/// Python symbol/type resolution by returning an expected Python annotation for
+/// each [`ComponentPropInterpolation`] context.
+pub fn interpolation_type_requirements_with_component_props<F, T>(
+    template: &TemplateInput,
+    resolve_expected_python_type: F,
+) -> BackendResult<Vec<InterpolationTypeRequirement>>
+where
+    F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
+    T: Into<String>,
+{
+    let document = prepare_template(template)?;
+    Ok(
+        interpolation_type_requirements_for_document_with_component_props(
+            &document,
+            resolve_expected_python_type,
+        ),
+    )
+}
+
+/// Collect type requirements from an already prepared TDOM document.
+pub fn interpolation_type_requirements_for_document_with_component_props<F, T>(
+    document: &Document,
+    mut resolve_expected_python_type: F,
+) -> Vec<InterpolationTypeRequirement>
+where
+    F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
+    T: Into<String>,
+{
+    let mut requirements = Vec::new();
+    for child in &document.children {
+        collect_component_prop_type_requirements(
+            child,
+            &mut resolve_expected_python_type,
+            &mut requirements,
+        );
+    }
+    requirements.sort_by_key(|requirement| requirement.interpolation_index);
+    requirements
+}
+
+/// Normalize a TDOM attribute name into the Python keyword used for component props.
+pub fn normalize_component_prop_name(name: &str) -> Cow<'_, str> {
+    if !name
+        .bytes()
+        .any(|byte| byte == b'-' || byte.is_ascii_uppercase())
+    {
+        return Cow::Borrowed(name);
+    }
+    Cow::Owned(name.replace('-', "_").to_ascii_lowercase())
+}
+
+fn collect_component_prop_type_requirements<F, T>(
+    node: &Node,
+    resolve_expected_python_type: &mut F,
+    requirements: &mut Vec<InterpolationTypeRequirement>,
+) where
+    F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
+    T: Into<String>,
+{
+    match node {
+        Node::ComponentTag(component) => {
+            for attribute in &component.attributes {
+                collect_component_attribute_type_requirements(
+                    component.start_tag.expression.as_str(),
+                    component.start_tag.interpolation_index,
+                    attribute,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+            for child in &component.children {
+                collect_component_prop_type_requirements(
+                    child,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+        }
+        Node::Element(element) => {
+            for child in &element.children {
+                collect_component_prop_type_requirements(
+                    child,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+        }
+        Node::RawTextElement(element) => {
+            for child in &element.children {
+                collect_component_prop_type_requirements(
+                    child,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+        }
+        Node::Fragment(fragment) => {
+            for child in &fragment.children {
+                collect_component_prop_type_requirements(
+                    child,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+        }
+        Node::Text(_) | Node::Interpolation(_) | Node::Comment(_) | Node::Doctype(_) => {}
+    }
+}
+
+fn collect_component_attribute_type_requirements<F, T>(
+    component_expression: &str,
+    component_interpolation_index: usize,
+    attribute: &AttributeLike,
+    resolve_expected_python_type: &mut F,
+    requirements: &mut Vec<InterpolationTypeRequirement>,
+) where
+    F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
+    T: Into<String>,
+{
+    match attribute {
+        AttributeLike::InterpolatedAttribute(attribute)
+            if !matches!(attribute.name.as_str(), "data" | "aria") =>
+        {
+            let value_kind = if matches!(attribute.name.as_str(), "class" | "style") {
+                ComponentPropValueKind::StringLike
+            } else {
+                ComponentPropValueKind::Typed
+            };
+            push_component_prop_type_requirement(
+                component_expression,
+                component_interpolation_index,
+                &attribute.name,
+                &attribute.interpolation,
+                value_kind,
+                resolve_expected_python_type,
+                requirements,
+            );
+        }
+        AttributeLike::TemplatedAttribute(attribute) => {
+            for part in &attribute.parts {
+                let ValuePart::Interpolation(interpolation) = part else {
+                    continue;
+                };
+                push_component_prop_type_requirement(
+                    component_expression,
+                    component_interpolation_index,
+                    &attribute.name,
+                    interpolation,
+                    ComponentPropValueKind::StringFragment,
+                    resolve_expected_python_type,
+                    requirements,
+                );
+            }
+        }
+        AttributeLike::LiteralAttribute(_)
+        | AttributeLike::InterpolatedAttribute(_)
+        | AttributeLike::SpreadAttribute(_) => {}
+    }
+}
+
+fn push_component_prop_type_requirement<F, T>(
+    component_expression: &str,
+    component_interpolation_index: usize,
+    raw_prop_name: &str,
+    interpolation: &InterpolationNode,
+    value_kind: ComponentPropValueKind,
+    resolve_expected_python_type: &mut F,
+    requirements: &mut Vec<InterpolationTypeRequirement>,
+) where
+    F: FnMut(ComponentPropInterpolation<'_>) -> Option<T>,
+    T: Into<String>,
+{
+    let prop_name = normalize_component_prop_name(raw_prop_name);
+    let Some(expected_python_type) = resolve_expected_python_type(ComponentPropInterpolation {
+        component_expression,
+        component_interpolation_index,
+        raw_prop_name,
+        prop_name: prop_name.clone(),
+        interpolation,
+        value_kind,
+    }) else {
+        return;
+    };
+    let expected_python_type = expected_python_type.into();
+    if expected_python_type.is_empty() {
+        return;
+    }
+
+    requirements.push(InterpolationTypeRequirement::new(
+        interpolation.interpolation_index,
+        expected_python_type,
+        component_prop_expected_description(&prop_name, value_kind),
+    ));
+}
+
+fn component_prop_expected_description(
+    prop_name: &str,
+    value_kind: ComponentPropValueKind,
+) -> String {
+    match value_kind {
+        ComponentPropValueKind::Typed => format!("tdom component prop '{prop_name}'"),
+        ComponentPropValueKind::StringLike => {
+            format!("tdom component prop '{prop_name}' string-like value")
+        }
+        ComponentPropValueKind::StringFragment => {
+            format!("tdom component prop '{prop_name}' string fragment")
+        }
+    }
+}
+
 fn validate_document(document: &Document) -> BackendResult<()> {
     for child in &document.children {
         validate_node(child)?;
@@ -1423,6 +1669,144 @@ mod tests {
         };
         assert_eq!(component.start_tag.interpolation_index, 0);
         assert_eq!(component.end_tag.as_ref().unwrap().interpolation_index, 2);
+    }
+
+    #[test]
+    fn tdom_reports_component_prop_interpolation_type_requirements() {
+        let template = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<".to_owned()),
+            interpolation(0, "Card", "{Card}"),
+            TemplateSegment::StaticText(" title=".to_owned()),
+            interpolation(1, "title", "{title}"),
+            TemplateSegment::StaticText(" class=".to_owned()),
+            interpolation(2, "classes", "{classes}"),
+            TemplateSegment::StaticText(" label=\"Hello ".to_owned()),
+            interpolation(3, "name", "{name}"),
+            TemplateSegment::StaticText("\" data-user-id=".to_owned()),
+            interpolation(4, "user_id", "{user_id}"),
+            TemplateSegment::StaticText("><span value=".to_owned()),
+            interpolation(5, "ignored", "{ignored}"),
+            TemplateSegment::StaticText("></span></".to_owned()),
+            interpolation(6, "Card", "{Card}"),
+            TemplateSegment::StaticText(">".to_owned()),
+        ]);
+
+        let mut contexts = Vec::new();
+        let requirements =
+            interpolation_type_requirements_with_component_props(&template, |context| {
+                contexts.push((
+                    context.component_expression.to_owned(),
+                    context.raw_prop_name.to_owned(),
+                    context.prop_name.to_string(),
+                    context.interpolation.interpolation_index,
+                    context.value_kind,
+                ));
+
+                match context.prop_name.as_ref() {
+                    "title" | "class" | "label" => Some("str"),
+                    "data_user_id" => Some("int"),
+                    _ => None,
+                }
+            })
+            .expect("type requirements");
+
+        assert_eq!(
+            contexts,
+            vec![
+                (
+                    "Card".to_owned(),
+                    "title".to_owned(),
+                    "title".to_owned(),
+                    1,
+                    ComponentPropValueKind::Typed,
+                ),
+                (
+                    "Card".to_owned(),
+                    "class".to_owned(),
+                    "class".to_owned(),
+                    2,
+                    ComponentPropValueKind::StringLike,
+                ),
+                (
+                    "Card".to_owned(),
+                    "label".to_owned(),
+                    "label".to_owned(),
+                    3,
+                    ComponentPropValueKind::StringFragment,
+                ),
+                (
+                    "Card".to_owned(),
+                    "data-user-id".to_owned(),
+                    "data_user_id".to_owned(),
+                    4,
+                    ComponentPropValueKind::Typed,
+                ),
+            ]
+        );
+        assert_eq!(
+            requirements,
+            vec![
+                InterpolationTypeRequirement::new(1, "str", "tdom component prop 'title'"),
+                InterpolationTypeRequirement::new(
+                    2,
+                    "str",
+                    "tdom component prop 'class' string-like value",
+                ),
+                InterpolationTypeRequirement::new(
+                    3,
+                    "str",
+                    "tdom component prop 'label' string fragment",
+                ),
+                InterpolationTypeRequirement::new(4, "int", "tdom component prop 'data_user_id'"),
+            ]
+        );
+
+        let document = prepare_template(&template).expect("tdom should parse");
+        let document_requirements =
+            interpolation_type_requirements_for_document_with_component_props(
+                &document,
+                |context| match context.prop_name.as_ref() {
+                    "title" | "class" | "label" => Some("str"),
+                    "data_user_id" => Some("int"),
+                    _ => None,
+                },
+            );
+        assert_eq!(document_requirements, requirements);
+    }
+
+    #[test]
+    fn tdom_skips_component_prop_requirements_without_concrete_props() {
+        let template = TemplateInput::from_segments(vec![
+            TemplateSegment::StaticText("<".to_owned()),
+            interpolation(0, "Card", "{Card}"),
+            TemplateSegment::StaticText(" data=".to_owned()),
+            interpolation(1, "data_attrs", "{data_attrs}"),
+            TemplateSegment::StaticText(" aria=".to_owned()),
+            interpolation(2, "aria_attrs", "{aria_attrs}"),
+            TemplateSegment::StaticText(" ".to_owned()),
+            interpolation(3, "spread_attrs", "{spread_attrs}"),
+            TemplateSegment::StaticText(" title=".to_owned()),
+            interpolation(4, "title", "{title}"),
+            TemplateSegment::StaticText(" />".to_owned()),
+        ]);
+
+        let mut seen = Vec::new();
+        let requirements =
+            interpolation_type_requirements_with_component_props(&template, |context| {
+                seen.push(context.interpolation.interpolation_index);
+                Some("str")
+            })
+            .expect("type requirements");
+
+        assert_eq!(seen, vec![4]);
+        assert_eq!(
+            requirements,
+            vec![InterpolationTypeRequirement::new(
+                4,
+                "str",
+                "tdom component prop 'title'",
+            )]
+        );
     }
 
     #[test]

@@ -108,4 +108,12 @@ The integration seam is:
 - Diagnostics use `tstring_syntax::SourceSpan`
 - Tooling constructs `TemplateInput` from source text and preserves `raw_source`
 - No Python runtime object is required for lint/format
-- Reserved language ids: `"html"` and `"thtml"`
+- Reserved language ids: `"html"`, `"thtml"`, and `"tdom"`
+
+For TDOM component prop type checking, tools should use
+`tstring_tdom::interpolation_type_requirements_with_component_props`. The
+backend walks component tags, normalizes prop names such as `data-user-id` to
+`data_user_id`, and passes each concrete prop interpolation to the caller. The
+caller resolves the component expression and returns the expected Python
+annotation. This keeps TDOM syntax ownership in the backend while letting tools
+such as t-linter use their own Python type-resolution model.

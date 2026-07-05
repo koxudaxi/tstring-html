@@ -117,6 +117,14 @@ enum ErrorKind { Parse, Semantic, Unrepresentable }
 | Formatting | T-HTML formatter with component syntax |
 | Compile | `CompiledThtmlTemplate` with the parsed document |
 
+**tstring-tdom-rs** exposes TDOM parsing and tooling metadata:
+
+| Part | What it does |
+| --- | --- |
+| Parsing | Builds TDOM AST nodes with component tags and interpolation indexes |
+| Formatting | Formats HTML or SVG TDOM syntax from preserved `raw_source` |
+| Type requirement metadata | Walks component props and reports concrete interpolation sites; callers resolve Python types |
+
 `Renderable` lives entirely in the Python / bindings layer. The Rust backend does not know about it.
 
 ## Data Flow
@@ -196,6 +204,7 @@ When the backend is used outside the Python runtime (e.g. by t-linter), callers 
 - `check_template` validates structure and returns diagnostics with source spans
 - `format_template` re-renders canonical HTML/T-HTML, preserving interpolation source from `raw_source`
 - Missing `raw_source` is a semantic error
+- TDOM component prop type metadata comes from `interpolation_type_requirements_with_component_props`; Python symbol/type resolution stays in the calling tool
 
 ### Error model
 

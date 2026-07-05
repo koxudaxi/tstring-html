@@ -1,4 +1,6 @@
-use tstring_syntax::{ErrorKind, TemplateInput, TemplateInterpolation, TemplateSegment};
+use tstring_syntax::{
+    ErrorKind, InterpolationTypeRequirement, TemplateInput, TemplateInterpolation, TemplateSegment,
+};
 use tstring_tdom as backend_tdom;
 
 fn interpolation(index: usize, expression: &str, raw_source: &str) -> TemplateSegment {
@@ -57,6 +59,40 @@ fn tdom_backend_public_api_smoke_test() {
             .as_ref()
             .and_then(|tag| tag.raw_source.as_deref()),
         Some("{Button}")
+    );
+}
+
+#[test]
+fn tdom_backend_reports_component_prop_type_requirement_contexts() {
+    let template = TemplateInput::from_segments(vec![
+        TemplateSegment::StaticText("<".to_owned()),
+        interpolation(0, "Button", "{Button}"),
+        TemplateSegment::StaticText(" label=".to_owned()),
+        interpolation(1, "label", "{label}"),
+        TemplateSegment::StaticText(" data-user-id=".to_owned()),
+        interpolation(2, "user_id", "{user_id}"),
+        TemplateSegment::StaticText(" />".to_owned()),
+    ]);
+
+    let mut prop_names = Vec::new();
+    let requirements =
+        backend_tdom::interpolation_type_requirements_with_component_props(&template, |context| {
+            prop_names.push(context.prop_name.to_string());
+            match context.prop_name.as_ref() {
+                "label" => Some("str"),
+                "data_user_id" => Some("int"),
+                _ => None,
+            }
+        })
+        .expect("type requirements");
+
+    assert_eq!(prop_names, vec!["label", "data_user_id"]);
+    assert_eq!(
+        requirements,
+        vec![
+            InterpolationTypeRequirement::new(1, "str", "tdom component prop 'label'"),
+            InterpolationTypeRequirement::new(2, "int", "tdom component prop 'data_user_id'"),
+        ]
     );
 }
 
